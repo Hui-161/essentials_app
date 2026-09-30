@@ -33,9 +33,15 @@ class WeatherPalette(
 
         private const val TWILIGHT_MS = 50 * 60_000L
 
-        fun from(snapshot: WeatherSnapshot?, now: Long): WeatherPalette {
+        fun from(snapshot: WeatherSnapshot?, now: Long, override: String? = null): WeatherPalette {
             if (snapshot == null) return Neutral
-            val phase = phaseFor(snapshot, now)
+            val phase = when (override) {
+                "dawn" -> Phase.DAWN
+                "day" -> Phase.DAY
+                "dusk" -> Phase.DUSK
+                "night" -> Phase.NIGHT
+                else -> phaseFor(snapshot, now)
+            }
             val tint = tintFor(snapshot.condition)
             val glow = lerp(phase.sky, tint.color, tint.amount)
             val secondary = lerp(phase.skyLow, lerp(tint.color, Color.Black, 0.45f), tint.amount)

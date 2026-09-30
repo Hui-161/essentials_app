@@ -70,6 +70,7 @@ import com.sameerasw.essentials.utils.HapticUtil
 import com.sameerasw.essentials.utils.PermissionUIHelper
 import com.sameerasw.essentials.viewmodels.MainViewModel
 import com.sameerasw.essentials.weather.WeatherRepository
+import com.sameerasw.essentials.weather.effects.WeatherSimulation
 import com.sameerasw.essentials.weather.location.DeviceLocationSource
 import com.sameerasw.essentials.weather.model.CityResult
 import com.sameerasw.essentials.weather.model.WeatherError
@@ -97,6 +98,17 @@ fun WeatherSettingsUI(
     val provider = WeatherProviders.byId(providerId)
     val weatherState by WeatherRepository.state.collectAsState()
 
+    var experimental by remember { mutableStateOf(settings.isWeatherExperimentalEnabled()) }
+    var simulatedWeather by remember { mutableStateOf(settings.getString(SettingsRepository.KEY_DEBUG_SIMULATED_WEATHER, WeatherSimulation.OFF) ?: WeatherSimulation.OFF) }
+    var simulatedTime by remember { mutableStateOf(settings.getString(SettingsRepository.KEY_DEBUG_SIMULATED_TIME, "auto") ?: "auto") }
+    val lifecycleOwner = androidx.lifecycle.compose.LocalLifecycleOwner.current
+    androidx.compose.runtime.DisposableEffect(lifecycleOwner) {
+        val observer = androidx.lifecycle.LifecycleEventObserver { _, event ->
+            if (event == androidx.lifecycle.Lifecycle.Event.ON_RESUME) experimental = settings.isWeatherExperimentalEnabled()
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+    }
     var showInLauncher by remember { mutableStateOf(WeatherLauncher.isVisible(context)) }
     var effects by remember { mutableStateOf(settings.isIslandWeatherEffectsEnabled()) }
     var weatherHaptics by remember { mutableStateOf(settings.isIslandWeatherHapticsEnabled()) }
@@ -473,6 +485,50 @@ fun WeatherSettingsUI(
                     }
                 }
             }
+
+        if (experimental) {
+            SectionTitle(R.string.weather_section_experimental)
+            RoundedCardContainer(spacing = 2.dp, cornerRadius = 24.dp) {
+                ConfigPickerItem(
+                    title = stringResource(R.string.dev_simulate_weather_title),
+                    iconRes = R.drawable.rounded_partly_cloudy_day_24,
+                    selectedValue = WeatherSimulation.presets.firstOrNull { it.id == simulatedWeather }?.label.orEmpty(),
+                    modifier = Modifier.fillMaxWidth(),
+                ) {
+                    WeatherSimulation.presets.forEach { preset ->
+                        SegmentedDropdownMenuItem(
+                            text = { Text(preset.label) },
+                            onClick = {
+                                HapticUtil.performVirtualKeyHaptic(view)
+                                simulatedWeather = preset.id
+                                settings.putString(SettingsRepository.KEY_DEBUG_SIMULATED_WEATHER, preset.id)
+                            },
+                        )
+                    }
+                }
+                SegmentedPicker(
+                    items = listOf("auto", "dawn", "day", "dusk", "night"),
+                    selectedItem = simulatedTime,
+                    onItemSelected = {
+                        simulatedTime = it
+                        settings.putString(SettingsRepository.KEY_DEBUG_SIMULATED_TIME, it)
+                    },
+                    labelProvider = {
+                        context.getString(
+                            when (it) {
+                                "dawn" -> R.string.weather_sim_time_dawn
+                                "day" -> R.string.weather_sim_time_day
+                                "dusk" -> R.string.weather_sim_time_dusk
+                                "night" -> R.string.weather_sim_time_night
+                                else -> R.string.weather_sim_time_auto
+                            },
+                        )
+                    },
+                    modifier = Modifier.fillMaxWidth(),
+                    title = R.string.weather_sim_time_title,
+                )
+            }
+        }
     }
 }
 

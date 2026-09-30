@@ -2934,6 +2934,14 @@
     <string name="weather_alert_until">Until %1$s</string>
     <string name="weather_updated_at">Updated %1$s</string>
     <string name="weather_not_loaded">Not loaded yet</string>
+    <string name="dev_weather_experimental_title">Weather experiments</string>
+    <string name="weather_section_experimental">Experimental</string>
+    <string name="weather_sim_time_title">Time of day</string>
+    <string name="weather_sim_time_auto">Auto</string>
+    <string name="weather_sim_time_dawn">Dawn</string>
+    <string name="weather_sim_time_day">Day</string>
+    <string name="weather_sim_time_dusk">Dusk</string>
+    <string name="weather_sim_time_night">Night</string>
     <string name="weather_grant_location">Allow location</string>
     <string name="weather_show_in_launcher">Show in launcher</string>
     <string name="about_desc_weather">Pick a forecast source, set your location, units and refresh interval, and choose whether the full weather screen appears in your app list. The island and Brief use these settings.</string>

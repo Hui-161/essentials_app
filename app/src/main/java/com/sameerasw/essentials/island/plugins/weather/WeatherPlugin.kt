@@ -42,6 +42,7 @@ class WeatherPlugin : BaseIslandPlugin() {
         SettingsRepository.KEY_WEATHER_PROVIDER,
         SettingsRepository.KEY_WEATHER_API_KEY,
         SettingsRepository.KEY_DEBUG_SIMULATED_WEATHER,
+        SettingsRepository.KEY_DEBUG_WEATHER_EXPERIMENTAL,
         SettingsRepository.KEY_WEATHER_OPENMETEO_MODEL,
         *WeatherProviders.all.map { SettingsRepository.weatherApiKeyName(it.id) }.toTypedArray(),
         SettingsRepository.KEY_WEATHER_LOCATION_MODE,
@@ -118,7 +119,7 @@ class WeatherPlugin : BaseIslandPlugin() {
         val mode = settings.getIslandWeatherMode()
         val effects = settings.isIslandWeatherEffectsEnabled() && !DeviceUtils.isPowerSaveMode(context)
         val haptics = settings.isIslandWeatherHapticsEnabled()
-        val simulated = WeatherSimulation.find(settings.getString(SettingsRepository.KEY_DEBUG_SIMULATED_WEATHER, WeatherSimulation.OFF))?.spec
+        val simulated = settings.getSimulatedWeather()?.spec
         val alert = snapshot.activeAlerts().filter { it.severity.isSevere }.maxByOrNull { it.severity.ordinal }
         val temperature = WeatherFormat.temperature(snapshot.tempC, unit)
         val icon = if (alert != null) R.drawable.rounded_warning_24 else WeatherFormat.icon(snapshot.condition, snapshot.isDay)

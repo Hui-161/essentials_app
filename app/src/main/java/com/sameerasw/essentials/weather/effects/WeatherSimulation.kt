@@ -47,6 +47,25 @@ object WeatherSimulation {
             isDay = preset.spec.layers.none { it is Stars },
         )
 
+    fun withTimeOfDay(snapshot: WeatherSnapshot, override: String?): WeatherSnapshot =
+        if (override == null) snapshot else snapshot.copy(isDay = override != "night")
+
+    fun timeFor(snapshot: WeatherSnapshot?, override: String?, clock: Long): Long {
+        val rise = snapshot?.extras?.sunriseMillis
+        val set = snapshot?.extras?.sunsetMillis
+        if (override == null || rise == null || set == null) return clock
+        val day = 24 * 60 * 60_000L
+        val shift = Math.floorDiv(clock - rise, day) * day
+        val r = rise + shift
+        val s = set + shift
+        return when (override) {
+            "dawn" -> r
+            "day" -> (r + s) / 2
+            "dusk" -> s
+            else -> (s + r + day) / 2
+        }
+    }
+
     private fun conditionOf(spec: WeatherEffectSpec): WeatherCondition {
         val layers = spec.layers
         val rain = layers.filterIsInstance<Rain>().firstOrNull()

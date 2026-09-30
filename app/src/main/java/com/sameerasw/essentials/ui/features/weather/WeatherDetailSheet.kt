@@ -141,30 +141,22 @@ internal fun rememberWeatherPresentation(real: WeatherSnapshot?): WeatherPresent
         prefs.registerOnSharedPreferenceChangeListener(listener)
         onDispose { prefs.unregisterOnSharedPreferenceChangeListener(listener) }
     }
-    var simulationId by remember { mutableStateOf(settings.getString(SettingsRepository.KEY_DEBUG_SIMULATED_WEATHER, WeatherSimulation.OFF)) }
-    val lifecycleOwner = androidx.lifecycle.compose.LocalLifecycleOwner.current
-    androidx.compose.runtime.DisposableEffect(lifecycleOwner) {
-        val observer = androidx.lifecycle.LifecycleEventObserver { _, event ->
-            if (event == androidx.lifecycle.Lifecycle.Event.ON_RESUME) {
-                simulationId = settings.getString(SettingsRepository.KEY_DEBUG_SIMULATED_WEATHER, WeatherSimulation.OFF)
-            }
-        }
-        lifecycleOwner.lifecycle.addObserver(observer)
-        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
-    }
-    val simulation = WeatherSimulation.find(simulationId ?: WeatherSimulation.OFF)
-    val snapshot = real?.let { r -> simulation?.let { WeatherSimulation.apply(r, it) } ?: r }
+    val simulation = remember(settingsVersion) { settings.getSimulatedWeather() }
+    val timeOverride = remember(settingsVersion) { settings.getSimulatedTimeOfDay() }
+    val simulated = real?.let { r -> simulation?.let { WeatherSimulation.apply(r, it) } ?: r }
+    val snapshot = simulated?.let { WeatherSimulation.withTimeOfDay(it, timeOverride) }
     val unit = remember(settingsVersion) { WeatherFormat.unitFor(settings.getWeatherUnits()) }
-    var now by remember { mutableLongStateOf(System.currentTimeMillis()) }
+    var clock by remember { mutableLongStateOf(System.currentTimeMillis()) }
     LaunchedEffect(Unit) {
         while (true) {
             delay(60_000L)
-            now = System.currentTimeMillis()
+            clock = System.currentTimeMillis()
         }
     }
+    val now = WeatherSimulation.timeFor(snapshot, timeOverride, clock)
     val palette = animatedPalette(
-        remember(snapshot?.condition, snapshot?.isDay, snapshot?.extras?.sunriseMillis, snapshot?.extras?.sunsetMillis, now / 60_000L) {
-            WeatherPalette.from(snapshot, now)
+        remember(snapshot?.condition, snapshot?.isDay, snapshot?.extras?.sunriseMillis, snapshot?.extras?.sunsetMillis, now / 60_000L, timeOverride) {
+            WeatherPalette.from(snapshot, now, timeOverride)
         },
     )
     val effects = remember(settingsVersion) { settings.isIslandWeatherEffectsEnabled() && !DeviceUtils.isPowerSaveMode(context) }

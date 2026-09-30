@@ -504,6 +504,8 @@ class SettingsRepository(
         const val KEY_ISLAND_CAMERA_POSITION = "island_camera_position"
         const val KEY_ISLAND_PREVIEW_RING = "island_preview_ring"
         const val KEY_DEBUG_SIMULATED_WEATHER = "debug_simulated_weather"
+        const val KEY_DEBUG_WEATHER_EXPERIMENTAL = "debug_weather_experimental"
+        const val KEY_DEBUG_SIMULATED_TIME = "debug_simulated_time"
         const val KEY_ISLAND_PREVIEW_STAGE = "island_preview_stage"
         const val ISLAND_PREVIEW_STAGE_AUTO = "auto"
         const val ISLAND_PREVIEW_STAGE_PEEK = "peek"
@@ -3747,6 +3749,20 @@ class SettingsRepository(
     fun setWeatherProvider(id: String) = putString(KEY_WEATHER_PROVIDER, id)
 
     // Keys are stored per provider; the single key from before multiple sources belongs to WeatherAPI.com.
+    fun isWeatherExperimentalEnabled(): Boolean = getBoolean(KEY_DEBUG_WEATHER_EXPERIMENTAL, false)
+
+    fun getSimulatedWeather(): com.sameerasw.essentials.weather.effects.WeatherSimulationPreset? =
+        if (isWeatherExperimentalEnabled()) {
+            com.sameerasw.essentials.weather.effects.WeatherSimulation.find(
+                getString(KEY_DEBUG_SIMULATED_WEATHER, com.sameerasw.essentials.weather.effects.WeatherSimulation.OFF),
+            )
+        } else {
+            null
+        }
+
+    fun getSimulatedTimeOfDay(): String? =
+        if (isWeatherExperimentalEnabled()) getString(KEY_DEBUG_SIMULATED_TIME, "auto")?.takeIf { it != "auto" } else null
+
     fun getWeatherOpenMeteoModel(): String? = getString(KEY_WEATHER_OPENMETEO_MODEL, null)?.takeIf { it.isNotBlank() }
     fun setWeatherOpenMeteoModel(model: String?) = putString(KEY_WEATHER_OPENMETEO_MODEL, model.orEmpty())
 

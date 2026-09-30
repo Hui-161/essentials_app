@@ -139,6 +139,7 @@ class BriefPlugin : BaseIslandPlugin() {
         SettingsRepository.KEY_ISLAND_WEATHER_EFFECTS,
         SettingsRepository.KEY_ISLAND_WEATHER_HAPTICS,
         SettingsRepository.KEY_DEBUG_SIMULATED_WEATHER,
+        SettingsRepository.KEY_DEBUG_WEATHER_EXPERIMENTAL,
         SettingsRepository.KEY_WEATHER_UNITS,
         SettingsRepository.KEY_ISLAND_BRIEF_SHOW_ALARM,
         SettingsRepository.KEY_ISLAND_BRIEF_TWO_LINE_HEADER,
@@ -162,7 +163,7 @@ class BriefPlugin : BaseIslandPlugin() {
             unit = WeatherFormat.unitFor(settings.getWeatherUnits()),
             effects = settings.isIslandShowWeatherEnabled() && settings.isIslandWeatherEffectsEnabled() && !DeviceUtils.isPowerSaveMode(context),
             haptics = settings.isIslandWeatherHapticsEnabled(),
-            simulated = WeatherSimulation.find(settings.getString(SettingsRepository.KEY_DEBUG_SIMULATED_WEATHER, WeatherSimulation.OFF))?.spec,
+            simulated = settings.getSimulatedWeather()?.spec,
         )
         publish(
             IslandItem(

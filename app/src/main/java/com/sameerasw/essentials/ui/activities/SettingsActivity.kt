@@ -1395,25 +1395,17 @@ fun SettingsContent(
                 }
 
                 val devSettings = remember { SettingsRepository(context) }
-                var simulatedWeather by remember {
-                    mutableStateOf(devSettings.getString(SettingsRepository.KEY_DEBUG_SIMULATED_WEATHER, WeatherSimulation.OFF) ?: WeatherSimulation.OFF)
-                }
-                ConfigPickerItem(
-                    title = stringResource(R.string.dev_simulate_weather_title),
+                var weatherExperimental by remember { mutableStateOf(devSettings.isWeatherExperimentalEnabled()) }
+                IconToggleItem(
                     iconRes = R.drawable.rounded_partly_cloudy_day_24,
-                    selectedValue = WeatherSimulation.presets.firstOrNull { it.id == simulatedWeather }?.label.orEmpty(),
-                ) {
-                    WeatherSimulation.presets.forEach { preset ->
-                        SegmentedDropdownMenuItem(
-                            text = { Text(preset.label) },
-                            onClick = {
-                                HapticUtil.performVirtualKeyHaptic(view)
-                                simulatedWeather = preset.id
-                                devSettings.putString(SettingsRepository.KEY_DEBUG_SIMULATED_WEATHER, preset.id)
-                            },
-                        )
-                    }
-                }
+                    title = stringResource(R.string.dev_weather_experimental_title),
+                    isChecked = weatherExperimental,
+                    onCheckedChange = {
+                        HapticUtil.performVirtualKeyHaptic(view)
+                        weatherExperimental = it
+                        devSettings.putBoolean(SettingsRepository.KEY_DEBUG_WEATHER_EXPERIMENTAL, it)
+                    },
+                )
 
                 Row(
                     modifier =
