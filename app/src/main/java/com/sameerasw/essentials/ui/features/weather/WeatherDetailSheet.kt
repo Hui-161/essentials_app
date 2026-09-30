@@ -1,6 +1,15 @@
 package com.sameerasw.essentials.ui.features.weather
 
 import android.content.Context
+import androidx.compose.ui.util.lerp
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.layout.layout
+import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.input.nestedscroll.nestedScroll
+import androidx.compose.ui.input.nestedscroll.NestedScrollSource
+import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
+import androidx.compose.ui.platform.LocalDensity
 import android.os.Build
 import androidx.compose.material3.dynamicDarkColorScheme
 import android.text.format.DateFormat
@@ -152,51 +161,76 @@ fun WeatherDetailSheet(onDismissRequest: () -> Unit) {
                 if (!effectSpec.isEmpty) {
                     WeatherEffects(spec = effectSpec, modifier = Modifier.matchParentSize(), haptics = effectHaptics)
                 }
-                Column(
-                    Modifier
-                        .fillMaxSize()
-                        .verticalScroll(rememberScrollState())
-                        .navigationBarsPadding()
-                        .padding(top = 36.dp, bottom = 40.dp),
-                    verticalArrangement = Arrangement.spacedBy(20.dp),
-                ) {
+                val density = LocalDensity.current
+                val collapse = remember { mutableFloatStateOf(0f) }
+                val scrollState = rememberScrollState()
+                val maxCollapsePx = with(density) { COLLAPSE_RANGE.toPx() }
+                val connection = remember(maxCollapsePx) {
+                    object : NestedScrollConnection {
+                        override fun onPreScroll(available: Offset, source: NestedScrollSource): Offset {
+                            if (available.y >= 0f || collapse.floatValue >= 1f) return Offset.Zero
+                            val next = (collapse.floatValue - available.y / maxCollapsePx).coerceIn(0f, 1f)
+                            val consumed = -(next - collapse.floatValue) * maxCollapsePx
+                            collapse.floatValue = next
+                            return Offset(0f, consumed)
+                        }
+
+                        override fun onPostScroll(consumed: Offset, available: Offset, source: NestedScrollSource): Offset {
+                            if (available.y <= 0f || collapse.floatValue <= 0f) return Offset.Zero
+                            val next = (collapse.floatValue - available.y / maxCollapsePx).coerceIn(0f, 1f)
+                            val used = -(next - collapse.floatValue) * maxCollapsePx
+                            collapse.floatValue = next
+                            return Offset(0f, used)
+                        }
+                    }
+                }
+                Column(Modifier.fillMaxSize().nestedScroll(connection)) {
                     if (snapshot == null) {
-                        Spacer(Modifier.height(80.dp))
+                        Spacer(Modifier.height(120.dp))
                         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.Center) {
                             if (state.loading) LoadingIndicator() else Text(errorLabel(context, state.error), color = palette.onBaseMuted)
                         }
                     } else {
-                        Header(snapshot, unit, palette, Modifier.padding(horizontal = SIDE_PADDING))
-                        snapshot.activeAlerts().sortedByDescending { it.severity.ordinal }
-                            .forEach { AlertCard(it, palette, Modifier.padding(horizontal = SIDE_PADDING)) }
-                        HourlySection(snapshot, unit, palette)
-                        snapshot.daily.orEmpty().takeIf { it.isNotEmpty() }
-                            ?.let { DailySection(it, unit, palette, Modifier.padding(horizontal = SIDE_PADDING)) }
-                        DetailsSection(snapshot, unit, palette, Modifier.padding(horizontal = SIDE_PADDING))
-                        SunSection(snapshot, palette, Modifier.padding(horizontal = SIDE_PADDING))
-                        Footer(
-                            modifier = Modifier.padding(horizontal = SIDE_PADDING),
-                            snapshot = snapshot,
-                            loading = state.loading,
-                            error = state.error,
-                            palette = palette,
-                            onRefresh = {
-                                HapticUtil.performVirtualKeyHaptic(view)
-                                scope.launch { WeatherRepository.refresh(context, force = true) }
-                            },
-                        )
+                        Spacer(Modifier.height(14.dp))
+                        LocationChip(snapshot, palette, Modifier.align(Alignment.CenterHorizontally).padding(horizontal = SIDE_PADDING))
+                        Header(snapshot, unit, palette, { collapse.floatValue }, Modifier.padding(horizontal = SIDE_PADDING))
+                        Column(
+                            Modifier
+                                .weight(1f)
+                                .fillMaxWidth()
+                                .verticalScroll(scrollState)
+                                .navigationBarsPadding()
+                                .padding(top = 12.dp, bottom = 40.dp),
+                            verticalArrangement = Arrangement.spacedBy(20.dp),
+                        ) {
+                            snapshot.activeAlerts().sortedByDescending { it.severity.ordinal }
+                                .forEach { AlertCard(it, palette, Modifier.padding(horizontal = SIDE_PADDING)) }
+                            HourlySection(snapshot, unit, palette)
+                            snapshot.daily.orEmpty().takeIf { it.isNotEmpty() }
+                                ?.let { DailySection(it, unit, palette, Modifier.padding(horizontal = SIDE_PADDING)) }
+                            DetailsSection(snapshot, unit, palette, Modifier.padding(horizontal = SIDE_PADDING))
+                            SunSection(snapshot, palette, Modifier.padding(horizontal = SIDE_PADDING))
+                            Footer(
+                                modifier = Modifier.padding(horizontal = SIDE_PADDING),
+                                snapshot = snapshot,
+                                loading = state.loading,
+                                error = state.error,
+                                palette = palette,
+                                onRefresh = {
+                                    HapticUtil.performVirtualKeyHaptic(view)
+                                    scope.launch { WeatherRepository.refresh(context, force = true) }
+                                },
+                            )
+                        }
                     }
                 }
-                BottomSheetDefaults.DragHandle(
-                    color = palette.onBaseMuted,
-                    modifier = Modifier.align(Alignment.TopCenter),
-                )
             }
         }
     }
 }
 
 private val SIDE_PADDING = 20.dp
+private val COLLAPSE_RANGE = 160.dp
 
 @OptIn(ExperimentalTextApi::class)
 private val TemperatureFont = FontFamily(
@@ -211,49 +245,66 @@ private val TemperatureFont = FontFamily(
 )
 
 @Composable
-private fun Header(snapshot: WeatherSnapshot, unit: TemperatureUnit, palette: WeatherPalette, modifier: Modifier) {
+private fun LocationChip(snapshot: WeatherSnapshot, palette: WeatherPalette, modifier: Modifier) {
     val place = listOf(snapshot.locationName, snapshot.region).filter { it.isNotBlank() }.joinToString(", ")
-    Column(modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(6.dp)) {
-        if (place.isNotBlank()) {
-            AssistChip(
-                onClick = {},
-                label = { Text(place, maxLines = 1, overflow = TextOverflow.Ellipsis, style = MaterialTheme.typography.titleMedium) },
-                leadingIcon = { Icon(painterResource(R.drawable.rounded_location_on_24), null, modifier = Modifier.size(20.dp)) },
-                shape = CircleShape,
-                border = null,
-                colors = AssistChipDefaults.assistChipColors(
-                    containerColor = palette.card,
-                    labelColor = palette.onBase,
-                    leadingIconContentColor = palette.accent,
-                ),
-            )
-        }
+    if (place.isBlank()) return
+    AssistChip(
+        onClick = {},
+        modifier = modifier,
+        label = { Text(place, maxLines = 1, overflow = TextOverflow.Ellipsis, style = MaterialTheme.typography.titleMedium) },
+        leadingIcon = { Icon(painterResource(R.drawable.rounded_location_on_24), null, modifier = Modifier.size(20.dp)) },
+        shape = CircleShape,
+        border = null,
+        colors = AssistChipDefaults.assistChipColors(
+            containerColor = palette.card,
+            labelColor = palette.onBase,
+            leadingIconContentColor = palette.accent,
+        ),
+    )
+}
+
+@Composable
+private fun Header(snapshot: WeatherSnapshot, unit: TemperatureUnit, palette: WeatherPalette, collapse: () -> Float, modifier: Modifier) {
+    val progress = collapse()
+    val size = lerp(150f, 72f, progress).sp
+    Column(modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
         Text(
             WeatherFormat.temperature(snapshot.tempC, unit),
             color = palette.onBase,
             fontFamily = TemperatureFont,
-            fontSize = 150.sp,
-            lineHeight = 150.sp,
-            letterSpacing = (-4).sp,
+            fontSize = size,
+            lineHeight = size,
+            letterSpacing = lerp(-4f, -2f, progress).sp,
             maxLines = 1,
         )
-        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            Icon(
-                painterResource(WeatherFormat.icon(snapshot.condition, snapshot.isDay)),
-                contentDescription = null,
-                tint = palette.accent,
-                modifier = Modifier.size(32.dp),
+        Column(
+            Modifier
+                .layout { measurable, constraints ->
+                    val placeable = measurable.measure(constraints)
+                    layout(placeable.width, (placeable.height * (1f - progress)).roundToInt()) { placeable.placeRelative(0, 0) }
+                }
+                .graphicsLayer { alpha = (1f - progress * 1.6f).coerceIn(0f, 1f) },
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(6.dp),
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                Icon(
+                    painterResource(WeatherFormat.icon(snapshot.condition, snapshot.isDay)),
+                    contentDescription = null,
+                    tint = palette.accent,
+                    modifier = Modifier.size(32.dp),
+                )
+                Text(snapshot.conditionText, color = palette.onBase, style = MaterialTheme.typography.headlineSmall, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            }
+            Text(
+                listOf(
+                    stringResource(R.string.weather_high_low, WeatherFormat.temperature(snapshot.highC, unit), WeatherFormat.temperature(snapshot.lowC, unit)),
+                    stringResource(R.string.weather_feels_like, WeatherFormat.temperature(snapshot.feelsLikeC, unit)),
+                ).joinToString(" · "),
+                color = palette.onBaseMuted,
+                style = MaterialTheme.typography.bodyLarge,
             )
-            Text(snapshot.conditionText, color = palette.onBase, style = MaterialTheme.typography.headlineSmall, maxLines = 1, overflow = TextOverflow.Ellipsis)
         }
-        Text(
-            listOf(
-                stringResource(R.string.weather_high_low, WeatherFormat.temperature(snapshot.highC, unit), WeatherFormat.temperature(snapshot.lowC, unit)),
-                stringResource(R.string.weather_feels_like, WeatherFormat.temperature(snapshot.feelsLikeC, unit)),
-            ).joinToString(" · "),
-            color = palette.onBaseMuted,
-            style = MaterialTheme.typography.bodyLarge,
-        )
     }
 }
 
