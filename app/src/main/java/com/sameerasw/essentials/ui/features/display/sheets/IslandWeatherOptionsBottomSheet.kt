@@ -16,6 +16,7 @@ import android.net.Uri
 import android.text.format.DateFormat
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -90,7 +91,8 @@ fun IslandWeatherOptionsBottomSheet(
     val view = LocalView.current
     val scope = rememberCoroutineScope()
     val settings = remember { SettingsRepository(context) }
-    val provider = remember { WeatherProviders.byId(settings.getWeatherProvider()) }
+    var providerId by remember { mutableStateOf(WeatherProviders.resolve(settings.getWeatherProvider(), settings.getWeatherApiKey("weatherapi")).id) }
+    val provider = WeatherProviders.byId(providerId)
     val weatherState by WeatherRepository.state.collectAsState()
 
     var mode by remember { mutableStateOf(settings.getIslandWeatherMode()) }
@@ -99,7 +101,7 @@ fun IslandWeatherOptionsBottomSheet(
     var weatherHaptics by remember { mutableStateOf(settings.isIslandWeatherHapticsEnabled()) }
     var units by remember { mutableStateOf(settings.getWeatherUnits()) }
     var refreshMinutes by remember { mutableIntStateOf(settings.getWeatherRefreshMinutes()) }
-    var savedKey by remember { mutableStateOf(settings.getWeatherApiKey().orEmpty()) }
+    var savedKey by remember { mutableStateOf(settings.getWeatherApiKey(providerId).orEmpty()) }
     var keyInput by remember { mutableStateOf(savedKey) }
     var keyVisible by remember { mutableStateOf(false) }
     var locationMode by remember { mutableStateOf(settings.getWeatherLocationMode()) }
@@ -212,12 +214,27 @@ fun IslandWeatherOptionsBottomSheet(
                     WeatherProviders.all.forEach { option ->
                         SegmentedDropdownMenuItem(
                             text = { Text(option.displayName) },
-                            onClick = { settings.setWeatherProvider(option.id) },
+                            onClick = {
+                                if (option.id != providerId) {
+                                    settings.setWeatherProvider(option.id)
+                                    providerId = option.id
+                                    savedKey = settings.getWeatherApiKey(option.id).orEmpty()
+                                    keyInput = savedKey
+                                    scope.launch {
+                                        WeatherRepository.clear(context)
+                                        WeatherRepository.refresh(context, force = true)
+                                    }
+                                }
+                            },
                         )
                     }
                 }
                 if (provider.requiresApiKey) {
-                    Surface(color = MaterialTheme.colorScheme.surfaceBright, modifier = Modifier.fillMaxWidth()) {
+                    Surface(
+                        color = MaterialTheme.colorScheme.surfaceBright,
+                        shape = MaterialTheme.shapes.extraSmall,
+                        modifier = Modifier.fillMaxWidth(),
+                    ) {
                         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                             OutlinedTextField(
                                 value = keyInput,
@@ -266,7 +283,7 @@ fun IslandWeatherOptionsBottomSheet(
                                 Button(
                                     onClick = {
                                         HapticUtil.performVirtualKeyHaptic(view)
-                                        settings.setWeatherApiKey(keyInput)
+                                        settings.setWeatherApiKey(providerId, keyInput)
                                         savedKey = keyInput
                                         refreshNow()
                                     },
@@ -275,6 +292,33 @@ fun IslandWeatherOptionsBottomSheet(
                                     Text(stringResource(R.string.action_save))
                                 }
                             }
+                        }
+                    }
+                }
+                val sourceError = weatherState.error?.takeIf { it !is WeatherError.LocationPermission && it !is WeatherError.NoLocation }
+                AnimatedVisibility(visible = sourceError != null) {
+                    val shownError = remember { mutableStateOf(sourceError) }
+                    if (sourceError != null) shownError.value = sourceError
+                    Surface(
+                        color = MaterialTheme.colorScheme.errorContainer,
+                        shape = MaterialTheme.shapes.extraSmall,
+                        modifier = Modifier.fillMaxWidth(),
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(16.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(12.dp),
+                        ) {
+                            Icon(
+                                painterResource(R.drawable.rounded_warning_24),
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.onErrorContainer,
+                            )
+                            Text(
+                                text = shownError.value?.let { errorText(context, it) }.orEmpty(),
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onErrorContainer,
+                            )
                         }
                     }
                 }
@@ -339,7 +383,7 @@ fun IslandWeatherOptionsBottomSheet(
                                                 searchError = null
                                                 scope.launch {
                                                     try {
-                                                        cityResults = provider.searchCities(cityQuery, settings.getWeatherApiKey())
+                                                        cityResults = provider.searchCities(cityQuery, settings.getWeatherApiKey(providerId))
                                                         if (cityResults.isEmpty()) searchError = R.string.weather_search_no_results
                                                     } catch (e: WeatherProviderException) {
                                                         searchError = if (e.reason == WeatherProviderException.Reason.INVALID_KEY) {
@@ -468,8 +512,8 @@ private fun intervalLabel(context: Context, minutes: Int): String =
         context.getString(R.string.weather_interval_hours, minutes / 60)
     }
 
-private fun statusText(context: Context, updatedAt: Long?, error: WeatherError?): String = when {
-    error != null -> context.getString(
+private fun errorText(context: Context, error: WeatherError): String {
+    val base = context.getString(
         when (error) {
             WeatherError.MissingApiKey -> R.string.weather_error_missing_key
             WeatherError.InvalidApiKey -> R.string.weather_error_invalid_key
@@ -479,6 +523,12 @@ private fun statusText(context: Context, updatedAt: Long?, error: WeatherError?)
             is WeatherError.Unknown -> R.string.weather_error_unknown
         },
     )
+    val detail = (error as? WeatherError.Unknown)?.message?.takeIf { it.isNotBlank() }
+    return if (detail != null) "$base: $detail" else base
+}
+
+private fun statusText(context: Context, updatedAt: Long?, error: WeatherError?): String = when {
+    error != null -> errorText(context, error)
     updatedAt != null -> context.getString(
         R.string.weather_updated_at,
         DateFormat.getTimeFormat(context).format(Date(updatedAt)),

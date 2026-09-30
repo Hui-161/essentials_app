@@ -526,6 +526,7 @@ class SettingsRepository(
 
         const val KEY_WEATHER_PROVIDER = "weather_provider"
         const val KEY_WEATHER_API_KEY = "weather_api_key"
+        fun weatherApiKeyName(providerId: String) = "${KEY_WEATHER_API_KEY}_$providerId"
         const val KEY_WEATHER_LOCATION_MODE = "weather_location_mode"
         const val KEY_WEATHER_MANUAL_LOCATION = "weather_manual_location"
         const val KEY_WEATHER_UNITS = "weather_units"
@@ -1627,7 +1628,7 @@ class SettingsRepository(
                     if (key == KEY_GITHUB_ACCESS_TOKEN ||
                         key == KEY_GITHUB_WORKFLOW_TOKEN ||
                         key == KEY_SHIZUKU_AUTH_TOKEN ||
-                        key == KEY_WEATHER_API_KEY ||
+                        key.startsWith(KEY_WEATHER_API_KEY) ||
                         key.startsWith("mac_battery_") ||
                         key == "airsync_mac_connected" ||
                         key == KEY_SNOOZE_DISCOVERED_CHANNELS ||
@@ -1705,6 +1706,7 @@ class SettingsRepository(
                         KEY_GITHUB_WORKFLOW_TOKEN,
                         KEY_SHIZUKU_AUTH_TOKEN,
                         KEY_WEATHER_API_KEY,
+                        *com.sameerasw.essentials.weather.provider.WeatherProviders.all.map { weatherApiKeyName(it.id) }.toTypedArray(),
                         "airsync_mac_connected",
                         KEY_SNOOZE_DISCOVERED_CHANNELS,
                         KEY_MAPS_DISCOVERED_CHANNELS,
@@ -1744,7 +1746,7 @@ class SettingsRepository(
                             if (key == KEY_GITHUB_ACCESS_TOKEN ||
                                 key == KEY_GITHUB_WORKFLOW_TOKEN ||
                                 key == KEY_SHIZUKU_AUTH_TOKEN ||
-                                key == KEY_WEATHER_API_KEY
+                                key.startsWith(KEY_WEATHER_API_KEY)
                             ) {
                                 return@forEach
                             }
@@ -3742,8 +3744,13 @@ class SettingsRepository(
     fun getWeatherProvider(): String? = getString(KEY_WEATHER_PROVIDER, null)
     fun setWeatherProvider(id: String) = putString(KEY_WEATHER_PROVIDER, id)
 
-    fun getWeatherApiKey(): String? = getString(KEY_WEATHER_API_KEY, null)?.takeIf { it.isNotBlank() }
-    fun setWeatherApiKey(key: String?) = putString(KEY_WEATHER_API_KEY, key?.trim().orEmpty())
+    // Keys are stored per provider; the single key from before multiple sources belongs to WeatherAPI.com.
+    fun getWeatherApiKey(providerId: String): String? {
+        val own = getString(weatherApiKeyName(providerId), null)
+        if (own != null) return own.takeIf { it.isNotBlank() }
+        return if (providerId == "weatherapi") getString(KEY_WEATHER_API_KEY, null)?.takeIf { it.isNotBlank() } else null
+    }
+    fun setWeatherApiKey(providerId: String, key: String?) = putString(weatherApiKeyName(providerId), key?.trim().orEmpty())
 
     fun getWeatherLocationMode(): String = getString(KEY_WEATHER_LOCATION_MODE, "device") ?: "device"
     fun setWeatherLocationMode(mode: String) = putString(KEY_WEATHER_LOCATION_MODE, mode)

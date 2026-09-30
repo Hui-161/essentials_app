@@ -274,7 +274,12 @@ fun IslandSettingsUI(
                 onCheckedChange = { checked ->
                     HapticUtil.performVirtualKeyHaptic(view)
                     viewModel.setIslandShowWeather(checked)
-                    if (checked && SettingsRepository(context).getWeatherApiKey() == null) showWeatherOptionsSheet = true
+                    if (checked) {
+                        val weatherSettings = SettingsRepository(context)
+                        val weatherProvider = com.sameerasw.essentials.weather.provider.WeatherProviders
+                            .resolve(weatherSettings.getWeatherProvider(), weatherSettings.getWeatherApiKey("weatherapi"))
+                        if (weatherProvider.requiresApiKey && weatherSettings.getWeatherApiKey(weatherProvider.id) == null) showWeatherOptionsSheet = true
+                    }
                 },
                 onSettingsClick = { showWeatherOptionsSheet = true },
                 modifier = Modifier.highlight(highlightSetting == "island_show_weather"),
