@@ -526,6 +526,7 @@ class SettingsRepository(
 
         const val KEY_WEATHER_PROVIDER = "weather_provider"
         const val KEY_WEATHER_API_KEY = "weather_api_key"
+        const val KEY_WEATHER_OPENMETEO_MODEL = "weather_openmeteo_model"
         fun weatherApiKeyName(providerId: String) = "${KEY_WEATHER_API_KEY}_$providerId"
         const val KEY_WEATHER_LOCATION_MODE = "weather_location_mode"
         const val KEY_WEATHER_MANUAL_LOCATION = "weather_manual_location"
@@ -3745,6 +3746,9 @@ class SettingsRepository(
     fun setWeatherProvider(id: String) = putString(KEY_WEATHER_PROVIDER, id)
 
     // Keys are stored per provider; the single key from before multiple sources belongs to WeatherAPI.com.
+    fun getWeatherOpenMeteoModel(): String? = getString(KEY_WEATHER_OPENMETEO_MODEL, null)?.takeIf { it.isNotBlank() }
+    fun setWeatherOpenMeteoModel(model: String?) = putString(KEY_WEATHER_OPENMETEO_MODEL, model.orEmpty())
+
     fun getWeatherApiKey(providerId: String): String? {
         val own = getString(weatherApiKeyName(providerId), null)
         if (own != null) return own.takeIf { it.isNotBlank() }

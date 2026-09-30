@@ -20,7 +20,16 @@ class WeatherProviderException(val reason: Reason, message: String? = null) : Ex
 }
 
 object WeatherProviders {
-    val all: List<WeatherProvider> = listOf(OpenMeteoProvider(), MetNorwayProvider(), OpenWeatherMapProvider(), WeatherApiProvider())
+    val all: List<WeatherProvider> = listOf(
+        OpenMeteoProvider(),
+        MetNorwayProvider(),
+        NwsProvider(),
+        PirateWeatherProvider(),
+        TomorrowIoProvider(),
+        VisualCrossingProvider(),
+        OpenWeatherMapProvider(),
+        WeatherApiProvider(),
+    )
 
     val default: WeatherProvider get() = all.first()
 

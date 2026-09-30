@@ -16,7 +16,7 @@ internal object ProviderHttp {
 
     fun encode(value: String): String = URLEncoder.encode(value, "UTF-8")
 
-    suspend fun get(url: String): String = withContext(Dispatchers.IO) {
+    suspend fun get(url: String, headers: Map<String, String> = emptyMap()): String = withContext(Dispatchers.IO) {
         val connection = try {
             URL(url).openConnection() as HttpURLConnection
         } catch (e: IOException) {
@@ -26,6 +26,7 @@ internal object ProviderHttp {
             connection.connectTimeout = TIMEOUT_MS
             connection.readTimeout = TIMEOUT_MS
             connection.setRequestProperty("User-Agent", USER_AGENT)
+            headers.forEach { (k, v) -> connection.setRequestProperty(k, v) }
             val code = connection.responseCode
             if (code == HttpURLConnection.HTTP_UNAUTHORIZED || code == HttpURLConnection.HTTP_FORBIDDEN) {
                 throw WeatherProviderException(WeatherProviderException.Reason.INVALID_KEY)

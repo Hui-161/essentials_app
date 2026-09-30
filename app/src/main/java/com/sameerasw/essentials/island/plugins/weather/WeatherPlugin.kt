@@ -38,6 +38,7 @@ class WeatherPlugin : BaseIslandPlugin() {
         SettingsRepository.KEY_ISLAND_WEATHER_PEEK_ALERTS,
         SettingsRepository.KEY_WEATHER_PROVIDER,
         SettingsRepository.KEY_WEATHER_API_KEY,
+        SettingsRepository.KEY_WEATHER_OPENMETEO_MODEL,
         *WeatherProviders.all.map { SettingsRepository.weatherApiKeyName(it.id) }.toTypedArray(),
         SettingsRepository.KEY_WEATHER_LOCATION_MODE,
         SettingsRepository.KEY_WEATHER_MANUAL_LOCATION,
@@ -79,6 +80,7 @@ class WeatherPlugin : BaseIslandPlugin() {
         WeatherScheduler.schedule(context, settings.getWeatherRefreshMinutes())
         val signature = listOf(
             settings.getWeatherProvider(),
+            settings.getWeatherOpenMeteoModel(),
             WeatherRepository.config(context).let { it.providerId to it.apiKey },
             settings.getWeatherLocationMode(),
             settings.getWeatherManualLocation()?.toString(),

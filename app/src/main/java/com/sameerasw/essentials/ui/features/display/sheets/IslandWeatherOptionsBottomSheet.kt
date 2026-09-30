@@ -74,6 +74,7 @@ import com.sameerasw.essentials.weather.WeatherRepository
 import com.sameerasw.essentials.weather.location.DeviceLocationSource
 import com.sameerasw.essentials.weather.model.CityResult
 import com.sameerasw.essentials.weather.model.WeatherError
+import com.sameerasw.essentials.weather.provider.OpenMeteoModels
 import com.sameerasw.essentials.weather.provider.WeatherProviderException
 import com.sameerasw.essentials.weather.provider.WeatherProviders
 import kotlinx.coroutines.launch
@@ -227,6 +228,31 @@ fun IslandWeatherOptionsBottomSheet(
                                 }
                             },
                         )
+                    }
+                }
+                if (provider.id == "openmeteo") {
+                    var modelId by remember { mutableStateOf(settings.getWeatherOpenMeteoModel()) }
+                    ConfigPickerItem(
+                        title = stringResource(R.string.weather_model_title),
+                        selectedValue = OpenMeteoModels.label(modelId),
+                        iconRes = R.drawable.rounded_cloud_24,
+                        modifier = Modifier.fillMaxWidth(),
+                    ) {
+                        OpenMeteoModels.all.forEach { option ->
+                            SegmentedDropdownMenuItem(
+                                text = { Text(option.label) },
+                                onClick = {
+                                    if (option.id != modelId) {
+                                        settings.setWeatherOpenMeteoModel(option.id)
+                                        modelId = option.id
+                                        scope.launch {
+                                            WeatherRepository.clear(context)
+                                            WeatherRepository.refresh(context, force = true)
+                                        }
+                                    }
+                                },
+                            )
+                        }
                     }
                 }
                 if (provider.requiresApiKey) {

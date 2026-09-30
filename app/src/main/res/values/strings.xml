@@ -2934,6 +2934,7 @@
     <string name="weather_alert_until">Until %1$s</string>
     <string name="weather_updated_at">Updated %1$s</string>
     <string name="weather_not_loaded">Not loaded yet</string>
+    <string name="weather_model_title">Forecast model</string>
     <string name="weather_error_missing_key">Add an API key in weather options</string>
     <string name="weather_error_invalid_key">The API key was rejected</string>
     <string name="weather_error_location_permission">Location permission is needed for current location</string>

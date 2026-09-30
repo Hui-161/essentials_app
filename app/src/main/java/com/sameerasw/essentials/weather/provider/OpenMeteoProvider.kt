@@ -1,5 +1,7 @@
 package com.sameerasw.essentials.weather.provider
 
+import com.sameerasw.essentials.EssentialsApp
+import com.sameerasw.essentials.data.repository.SettingsRepository
 import com.sameerasw.essentials.weather.model.CityResult
 import com.sameerasw.essentials.weather.model.HourlyForecast
 import com.sameerasw.essentials.weather.model.WeatherCondition
@@ -8,6 +10,26 @@ import com.sameerasw.essentials.weather.model.WeatherSnapshot
 import org.json.JSONException
 import org.json.JSONObject
 import java.util.Locale
+
+object OpenMeteoModels {
+    class Model(val id: String?, val label: String)
+
+    val all = listOf(
+        Model(null, "Auto (best match)"),
+        Model("ecmwf_ifs025", "ECMWF IFS"),
+        Model("gfs_seamless", "NOAA GFS / HRRR"),
+        Model("icon_seamless", "DWD ICON"),
+        Model("meteofrance_seamless", "Météo-France"),
+        Model("ukmo_seamless", "UK Met Office"),
+        Model("gem_seamless", "Environment Canada GEM"),
+        Model("jma_seamless", "JMA"),
+    )
+
+    fun label(id: String?): String = all.firstOrNull { it.id == id }?.label ?: all.first().label
+
+    fun selected(): String? =
+        SettingsRepository(EssentialsApp.context).getWeatherOpenMeteoModel()?.takeIf { id -> all.any { it.id == id } }
+}
 
 class OpenMeteoProvider : WeatherProvider {
     override val id = "openmeteo"
@@ -20,7 +42,8 @@ class OpenMeteoProvider : WeatherProvider {
             "&current=temperature_2m,relative_humidity_2m,apparent_temperature,is_day,weather_code,wind_speed_10m" +
             "&hourly=temperature_2m,precipitation_probability,weather_code,is_day" +
             "&daily=temperature_2m_max,temperature_2m_min,precipitation_probability_max" +
-            "&forecast_days=2&timezone=auto&wind_speed_unit=kmh&timeformat=unixtime"
+            "&forecast_days=2&timezone=auto&wind_speed_unit=kmh&timeformat=unixtime" +
+            (OpenMeteoModels.selected()?.let { "&models=$it" } ?: "")
         val json = JSONObject(ProviderHttp.get(url))
         val place = location.name?.let { it to "" } ?: ProviderHttp.reverseGeocode(location.latitude, location.longitude)
         return try {
@@ -46,7 +69,7 @@ class OpenMeteoProvider : WeatherProvider {
         val hourly = buildList {
             for (i in 0 until times.length()) {
                 val time = times.getLong(i) * 1000L
-                if (time + HOUR_MS <= now) continue
+                if (time + HOUR_MS <= now || temps.isNull(i)) continue
                 add(
                     HourlyForecast(
                         timeMillis = time,
