@@ -47,12 +47,6 @@ interface WeatherEffectHaptics {
 private class ParticleField(val x: FloatArray, val phase: FloatArray, val speed: FloatArray, val size: FloatArray) {
     val count: Int get() = x.size
 
-    // A random spread of particles that land with a splash and a haptic tick; mixed speeds keep the rhythm irregular.
-    fun heroes(count: Int, seed: Int): IntArray = size.indices.shuffled(Random(seed)).take(count).toIntArray()
-
-    // Same shuffle as heroes(), so the haptic drops are always a subset of the ones that visibly splash.
-    fun splashers(count: Int, seed: Int): IntArray = size.indices.shuffled(Random(seed)).take(count.coerceAtMost(size.size)).toIntArray()
-
     companion object {
         fun create(count: Int, seed: Int): ParticleField {
             val random = Random(seed)
@@ -62,7 +56,7 @@ private class ParticleField(val x: FloatArray, val phase: FloatArray, val speed:
     }
 }
 
-private class LayerState(val layer: WeatherEffectLayer, val field: ParticleField, val heroes: IntArray, val splashers: IntArray)
+private class LayerState(val layer: WeatherEffectLayer, val field: ParticleField)
 
 @Composable
 fun WeatherEffects(
@@ -81,12 +75,7 @@ fun WeatherEffects(
     val layers = remember(spec) {
         spec.layers.mapIndexed { index, layer ->
             val field = ParticleField.create(particleCount(layer), seed = index * 7919 + 17)
-            LayerState(
-                layer,
-                field,
-                field.heroes(heroCount(layer), seed = index * 31 + 5),
-                field.splashers(splashCount(layer), seed = index * 31 + 5),
-            )
+            LayerState(layer, field)
         }
     }
 
@@ -149,18 +138,6 @@ private fun particleCount(layer: WeatherEffectLayer): Int = when (layer) {
     is WeatherEffectLayer.SunGlow, is WeatherEffectLayer.Lightning -> 0
 }
 
-private fun splashCount(layer: WeatherEffectLayer): Int = when (layer) {
-    is WeatherEffectLayer.Rain -> heroCount(layer) * 5
-    is WeatherEffectLayer.Hail -> heroCount(layer) * 3
-    else -> 0
-}
-
-private fun heroCount(layer: WeatherEffectLayer): Int = when (layer) {
-    is WeatherEffectLayer.Rain -> 2 + (6 * layer.intensity).roundToInt()
-    is WeatherEffectLayer.Hail -> 2 + (3 * layer.intensity).roundToInt()
-    else -> 0
-}
-
 // Shared geometry: the draw pass and the haptic pass must agree on exactly when a drop lands.
 private class Fall(val cyclesPerSecond: Float, val span: Float, val impact: Float)
 
@@ -185,6 +162,13 @@ private fun hailFall(field: ParticleField, i: Int, h: Float, density: Density): 
 
 private fun progress(field: ParticleField, i: Int, fall: Fall, t: Float): Float = (field.phase[i] + t * fall.cyclesPerSecond) % 1f
 
+// Every pass of a drop gets its own column and its own roll for landing on a surface, splashing or ticking, so nothing repeats.
+private fun cycleOf(field: ParticleField, i: Int, fall: Fall, t: Float): Int = floor(field.phase[i] + t * fall.cyclesPerSecond).toInt()
+
+private fun cycleX(i: Int, cycle: Int): Float = hash(i * 7919 + cycle * 104729 + 3)
+
+private fun roll(i: Int, cycle: Int, salt: Int): Float = hash(i * 31 + cycle * 977 + salt)
+
 private fun crossed(previous: Float, current: Float, threshold: Float): Boolean =
     if (current >= previous) threshold in previous..current && threshold != previous
     else previous < threshold || current >= threshold
@@ -201,16 +185,22 @@ private fun emitHaptics(
 ) {
     layers.forEach { state ->
         when (val layer = state.layer) {
-            is WeatherEffectLayer.Rain -> state.heroes.forEach { i ->
+            is WeatherEffectLayer.Rain -> for (i in 0 until state.field.count) {
                 val fall = rainFall(state.field, i, layer.intensity, h, density)
-                if (crossed(progress(state.field, i, fall, previous), progress(state.field, i, fall, now), fall.impact)) {
-                    sink.onDrop(layer.intensity, state.field.size[i])
+                val before = progress(state.field, i, fall, previous)
+                val after = progress(state.field, i, fall, now)
+                if (crossed(before, after, fall.impact)) {
+                    val cycle = cycleOf(state.field, i, fall, now) - if (after >= fall.impact) 0 else 1
+                    if (roll(i, cycle, HERO_SALT) < RAIN_HAPTIC_SHARE) sink.onDrop(layer.intensity, state.field.size[i])
                 }
             }
-            is WeatherEffectLayer.Hail -> state.heroes.forEach { i ->
+            is WeatherEffectLayer.Hail -> for (i in 0 until state.field.count) {
                 val fall = hailFall(state.field, i, h, density)
-                if (crossed(progress(state.field, i, fall, previous), progress(state.field, i, fall, now), fall.impact)) {
-                    sink.onHail(layer.intensity, state.field.size[i])
+                val before = progress(state.field, i, fall, previous)
+                val after = progress(state.field, i, fall, now)
+                if (crossed(before, after, fall.impact)) {
+                    val cycle = cycleOf(state.field, i, fall, now) - if (after >= fall.impact) 0 else 1
+                    if (roll(i, cycle, HERO_SALT) < HAIL_HAPTIC_SHARE) sink.onHail(layer.intensity, state.field.size[i])
                 }
             }
             is WeatherEffectLayer.Lightning -> {
@@ -224,6 +214,32 @@ private fun emitHaptics(
             else -> Unit
         }
     }
+}
+
+private class Landing(val ledge: Float, val x: Float)
+
+private fun landingFor(
+    surfaces: List<Rect>,
+    i: Int,
+    cycle: Int,
+    length: Float,
+    slant: Float,
+    w: Float,
+    h: Float,
+): Landing? {
+    if (surfaces.isEmpty() || roll(i, cycle, SURFACE_SALT) >= SURFACE_DROP_SHARE) return null
+    val depth = surfaceDepth(i, cycle)
+    val fx = cycleX(i, cycle)
+    fun headX(at: Float) = wrap(fx * w + slant * (at - length), w) + slant * length
+    var probe = h / 2f
+    var ledge = Float.MAX_VALUE
+    repeat(2) {
+        ledge = ledgeFor(surfaces, headX(probe), depth)
+        if (ledge == Float.MAX_VALUE) return null
+        probe = ledge
+    }
+    val x = headX(ledge)
+    return if (surfaces.any { x >= it.left && x <= it.right && it.top == ledge }) Landing(ledge, x) else null
 }
 
 private fun DrawScope.drawRain(
@@ -240,65 +256,49 @@ private fun DrawScope.drawRain(
     for (i in 0 until field.count) {
         val length = rainLength(field, i, layer.intensity, this)
         val fall = rainFall(field, i, layer.intensity, h, this)
-        val progress = progress(field, i, fall, t)
-        val y = progress * fall.span - length
-        val x = wrap(field.x[i] * w + layer.slant * y, w)
-        val alpha = (0.12f + 0.2f * layer.intensity) * (0.6f + 0.4f * field.size[i]) * strength
+        val p = progress(field, i, fall, t)
+        val cycle = cycleOf(field, i, fall, t)
+        val y = p * fall.span - length
+        val x = wrap(cycleX(i, cycle) * w + layer.slant * y, w)
         var endY = y + length
         var endX = x + layer.slant * length
-        // Only a small share of drops is stopped by the surfaces; the rest keeps falling to the bottom.
-        if (surfaces.isNotEmpty() && isSurfaceDrop(i)) {
-            val headX = x + layer.slant * length
-            val ledge = ledgeFor(surfaces, headX, surfaceDepth(i))
-            if (ledge < Float.MAX_VALUE) {
-                if (ledge <= y) {
-                    drawLedgeSplash(i, field, layer, fall, length, progress, ledge, w, strength, surfaces)
-                    continue
-                }
-                if (ledge < endY) {
-                    endY = ledge
-                    endX = x + layer.slant * (ledge - y)
-                }
+        val landing = landingFor(surfaces, i, cycle, length, layer.slant, w, h)
+        var visible = true
+        if (landing != null) {
+            if (landing.ledge <= y) visible = false
+            if (landing.ledge < endY) {
+                endY = landing.ledge
+                endX = x + layer.slant * (landing.ledge - y)
             }
         }
-        drawLine(
-            color = Color.White.copy(alpha = alpha),
-            start = Offset(x, y),
-            end = Offset(endX, endY),
-            strokeWidth = stroke,
-            cap = StrokeCap.Round,
-        )
-    }
-    if (surfaces.isNotEmpty()) {
-        for (i in 0 until field.count) {
-            if (!isSurfaceDrop(i)) continue
-            val length = rainLength(field, i, layer.intensity, this)
-            val fall = rainFall(field, i, layer.intensity, h, this)
-            val p = progress(field, i, fall, t)
-            val y = p * fall.span - length
-            val headX = wrap(field.x[i] * w + layer.slant * y, w) + layer.slant * length
-            val ledge = ledgeFor(surfaces, headX, surfaceDepth(i))
-            if (ledge < Float.MAX_VALUE && ledge > y) drawLedgeSplash(i, field, layer, fall, length, p, ledge, w, strength, surfaces)
+        val alpha = (0.12f + 0.2f * layer.intensity) * (0.6f + 0.4f * field.size[i]) * strength
+        if (visible) {
+            drawLine(
+                color = Color.White.copy(alpha = alpha),
+                start = Offset(x, y),
+                end = Offset(endX, endY),
+                strokeWidth = stroke,
+                cap = StrokeCap.Round,
+            )
         }
-    }
-    state.splashers.forEach { i ->
-        val fall = rainFall(field, i, layer.intensity, h, this)
-        val length = rainLength(field, i, layer.intensity, this)
-        val impactX = wrap(field.x[i] * w + layer.slant * (h - length), w) + layer.slant * length
-        drawSplash(
-            sinceImpact(progress(field, i, fall, t), fall),
-            impactX,
-            h - 2.dp.toPx(),
-            (0.2f + 0.25f * layer.intensity) * strength,
-        )
+        // The splash belongs to whichever pass last hit something: this one, or the one that just wrapped around.
+        for (c in cycle downTo cycle - 1) {
+            val hit = if (c == cycle) landing else landingFor(surfaces, i, c, length, layer.slant, w, h)
+            val impact = hit?.let { it.ledge / fall.span } ?: fall.impact
+            val since = ((cycle - c) + p - impact) / fall.cyclesPerSecond
+            if (since < 0f || since > SPLASH_S) continue
+            if (hit != null) {
+                drawSplash(since, hit.x, hit.ledge, (0.3f + 0.3f * layer.intensity) * strength)
+            } else if (roll(i, c, SPLASH_SALT) < SPLASH_SHARE) {
+                val bx = wrap(cycleX(i, c) * w + layer.slant * (h - length), w) + layer.slant * length
+                drawSplash(since, bx, h - 2.dp.toPx(), (0.2f + 0.25f * layer.intensity) * strength)
+            }
+        }
     }
 }
 
-private fun isSurfaceDrop(i: Int): Boolean = hash(i * 13 + 5) < SURFACE_DROP_SHARE
-
-// How many surfaces a drop falls past before it lands: most stop on the first, some reach the second or third.
-private fun surfaceDepth(i: Int): Int {
-    val v = hash(i * 29 + 11)
+private fun surfaceDepth(i: Int, cycle: Int): Int {
+    val v = roll(i, cycle, DEPTH_SALT)
     return if (v < 0.6f) 0 else if (v < 0.88f) 1 else 2
 }
 
@@ -315,28 +315,6 @@ private fun ledgeFor(surfaces: List<Rect>, x: Float, depth: Int): Float {
     return found
 }
 
-private fun DrawScope.drawLedgeSplash(
-    i: Int,
-    field: ParticleField,
-    layer: WeatherEffectLayer.Rain,
-    fall: Fall,
-    length: Float,
-    progress: Float,
-    ledge: Float,
-    w: Float,
-    strength: Float,
-    surfaces: List<Rect>,
-) {
-    val x = wrap(field.x[i] * w + layer.slant * (ledge - length), w) + layer.slant * length
-    if (surfaces.none { x >= it.left && x <= it.right && it.top == ledge }) return
-    drawSplash(
-        sinceImpact(progress, fall, ledge / fall.span),
-        x,
-        ledge,
-        (0.3f + 0.3f * layer.intensity) * strength,
-    )
-}
-
 private fun DrawScope.drawHail(state: LayerState, intensity: Float, t: Float, strength: Float) {
     val field = state.field
     val w = size.width
@@ -344,12 +322,15 @@ private fun DrawScope.drawHail(state: LayerState, intensity: Float, t: Float, st
     for (i in 0 until field.count) {
         val radius = hailRadius(field, i, this)
         val fall = hailFall(field, i, h, this)
-        val y = progress(field, i, fall, t) * fall.span - radius
-        drawCircle(Color.White.copy(alpha = (0.3f + 0.3f * intensity) * strength), radius, Offset(field.x[i] * w, y))
-    }
-    state.heroes.forEach { i ->
-        val fall = hailFall(field, i, h, this)
-        drawSplash(sinceImpact(progress(field, i, fall, t), fall), field.x[i] * w, h - 2.dp.toPx(), (0.3f + 0.3f * intensity) * strength)
+        val p = progress(field, i, fall, t)
+        val cycle = cycleOf(field, i, fall, t)
+        val y = p * fall.span - radius
+        drawCircle(Color.White.copy(alpha = (0.3f + 0.3f * intensity) * strength), radius, Offset(cycleX(i, cycle) * w, y))
+        for (c in cycle downTo cycle - 1) {
+            val since = ((cycle - c) + p - fall.impact) / fall.cyclesPerSecond
+            if (since < 0f || since > SPLASH_S || roll(i, c, SPLASH_SALT) >= HAIL_SPLASH_SHARE) continue
+            drawSplash(since, cycleX(i, c) * w, h - 2.dp.toPx(), (0.3f + 0.3f * intensity) * strength)
+        }
     }
 }
 
@@ -457,5 +438,13 @@ private const val TWO_PI = (2 * PI).toFloat()
 private const val LIGHTNING_CYCLE_S = 6f
 private const val SPLASH_S = 0.28f
 private const val SURFACE_DROP_SHARE = 0.035f
+private const val SPLASH_SHARE = 0.22f
+private const val HAIL_SPLASH_SHARE = 0.12f
+private const val RAIN_HAPTIC_SHARE = 0.05f
+private const val HAIL_HAPTIC_SHARE = 0.1f
+private const val HERO_SALT = 101
+private const val SPLASH_SALT = 211
+private const val SURFACE_SALT = 307
+private const val DEPTH_SALT = 401
 private val SUN_COLOR = Color(0xFFFFD27A)
 private val CLEAR_FADE = 32.dp

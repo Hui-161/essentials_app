@@ -168,6 +168,8 @@ fun WeatherScreen() {
     ) {
         androidx.compose.runtime.CompositionLocalProvider(LocalRainSurfaces provides rainSurfaces) {
         Box(Modifier.fillMaxSize()) {
+                val density = LocalDensity.current
+                val collapse = remember { mutableFloatStateOf(0f) }
                 Box(
                     Modifier
                         .matchParentSize()
@@ -180,6 +182,7 @@ fun WeatherScreen() {
                             ),
                         ),
                 )
+                snapshot?.let { SkyBody(it, now, { collapse.floatValue }) }
                 if (!effectSpec.isEmpty) {
                     WeatherEffects(
                         spec = effectSpec,
@@ -189,8 +192,6 @@ fun WeatherScreen() {
                         surfaces = { rainSurfaces.values.filter { it.top >= headerBottom.floatValue } },
                     )
                 }
-                val density = LocalDensity.current
-                val collapse = remember { mutableFloatStateOf(0f) }
                 val scrollState = rememberScrollState()
                 val maxCollapsePx = with(density) { COLLAPSE_RANGE.toPx() }
                 val connection = remember(maxCollapsePx) {
@@ -302,6 +303,48 @@ fun WeatherScreen() {
                 }
         }
         }
+    }
+}
+
+// A faint sun or moon crossing the top of the screen right to left, only when sunrise and sunset are known.
+@Composable
+private fun SkyBody(snapshot: WeatherSnapshot, now: Long, collapse: () -> Float) {
+    val rise = snapshot.extras?.sunriseMillis ?: return
+    val set = snapshot.extras?.sunsetMillis ?: return
+    val day = 24 * 60 * 60_000L
+    val shift = Math.floorDiv(now - rise, day) * day
+    val r = rise + shift
+    val s = set + shift
+    val isSun = now in r..s
+    val t = when {
+        isSun -> (now - r).toFloat() / (s - r).coerceAtLeast(1L)
+        now > s -> (now - s).toFloat() / ((r + day) - s).coerceAtLeast(1L)
+        else -> (now - (s - day)).toFloat() / (r - (s - day)).coerceAtLeast(1L)
+    }.coerceIn(0f, 1f)
+    val hide = (1f - collapse() * 1.6f).coerceIn(0f, 1f)
+    if (hide <= 0f) return
+    val horizonFade = (minOf(t, 1f - t) / 0.1f).coerceIn(0f, 1f)
+    val color = if (isSun) Color(0xFFFFE2A8) else Color(0xFFE6ECFF)
+    androidx.compose.foundation.Canvas(
+        Modifier
+            .fillMaxWidth()
+            .height(360.dp)
+            .graphicsLayer { translationY = -collapse() * 60.dp.toPx() },
+    ) {
+        val x = size.width * (0.9f - 0.8f * t)
+        val y = size.height * 0.66f - size.height * 0.4f * kotlin.math.sin(Math.PI.toFloat() * t)
+        val alpha = 0.5f * hide * horizonFade
+        val glowRadius = 110.dp.toPx()
+        drawCircle(
+            brush = Brush.radialGradient(
+                colors = listOf(color.copy(alpha = alpha * 0.55f), Color.Transparent),
+                center = Offset(x, y),
+                radius = glowRadius,
+            ),
+            radius = glowRadius,
+            center = Offset(x, y),
+        )
+        drawCircle(color.copy(alpha = alpha * 0.7f), radius = (if (isSun) 20.dp else 16.dp).toPx(), center = Offset(x, y))
     }
 }
 
