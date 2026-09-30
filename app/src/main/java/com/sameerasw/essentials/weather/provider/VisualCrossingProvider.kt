@@ -2,6 +2,8 @@ package com.sameerasw.essentials.weather.provider
 
 import com.sameerasw.essentials.weather.model.AlertSeverity
 import com.sameerasw.essentials.weather.model.CityResult
+import com.sameerasw.essentials.weather.model.WeatherExtras
+import com.sameerasw.essentials.weather.model.DailyForecast
 import com.sameerasw.essentials.weather.model.HourlyForecast
 import com.sameerasw.essentials.weather.model.WeatherAlert
 import com.sameerasw.essentials.weather.model.WeatherCondition
@@ -22,7 +24,7 @@ class VisualCrossingProvider : WeatherProvider {
         val key = apiKey?.trim().orEmpty()
         if (key.isEmpty()) throw WeatherProviderException(WeatherProviderException.Reason.INVALID_KEY)
         val url = "https://weather.visualcrossing.com/VisualCrossingWebServices/rest/services/timeline/" +
-            "${location.latitude},${location.longitude}/next2days?unitGroup=metric&include=current,hours,days,alerts" +
+            "${location.latitude},${location.longitude}/next7days?unitGroup=metric&include=current,hours,days,alerts" +
             "&contentType=json&key=${ProviderHttp.encode(key)}"
         val json = JSONObject(ProviderHttp.get(url))
         val place = location.name?.let { it to "" } ?: ProviderHttp.reverseGeocode(location.latitude, location.longitude)
@@ -102,6 +104,28 @@ class VisualCrossingProvider : WeatherProvider {
             alerts = alerts,
             updatedAt = now,
             providerId = id,
+            extras = WeatherExtras(
+                pressureHpa = current.optDouble("pressure").takeUnless { it.isNaN() },
+                visibilityKm = current.optDouble("visibility").takeUnless { it.isNaN() },
+                dewPointC = current.optDouble("dew").takeUnless { it.isNaN() },
+                cloudCover = current.optDouble("cloudcover").takeUnless { it.isNaN() }?.toInt(),
+                uvIndex = current.optDouble("uvindex").takeUnless { it.isNaN() },
+                windGustKph = current.optDouble("windgust").takeUnless { it.isNaN() },
+                windDirectionDeg = current.optDouble("winddir").takeUnless { it.isNaN() },
+                precipitationMm = current.optDouble("precip").takeUnless { it.isNaN() },
+                sunriseMillis = current.optLong("sunriseEpoch", 0L).takeIf { it > 0 }?.times(1000L),
+                sunsetMillis = current.optLong("sunsetEpoch", 0L).takeIf { it > 0 }?.times(1000L),
+            ),
+            daily = (0 until days.length()).map { i ->
+                val d = days.getJSONObject(i)
+                DailyForecast(
+                    dayMillis = d.getLong("datetimeEpoch") * 1000L,
+                    highC = d.getDouble("tempmax"),
+                    lowC = d.getDouble("tempmin"),
+                    condition = conditionFor(d.optString("icon")),
+                    chanceOfRain = d.optDouble("precipprob", 0.0).toInt(),
+                )
+            },
         )
     }
 
@@ -133,6 +157,6 @@ class VisualCrossingProvider : WeatherProvider {
 
     private companion object {
         const val HOUR_MS = 60 * 60 * 1000L
-        const val HOURLY_COUNT = 8
+        const val HOURLY_COUNT = 24
     }
 }

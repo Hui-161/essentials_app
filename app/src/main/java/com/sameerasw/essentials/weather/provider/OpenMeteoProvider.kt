@@ -3,7 +3,9 @@ package com.sameerasw.essentials.weather.provider
 import com.sameerasw.essentials.EssentialsApp
 import com.sameerasw.essentials.data.repository.SettingsRepository
 import com.sameerasw.essentials.weather.model.CityResult
+import com.sameerasw.essentials.weather.model.DailyForecast
 import com.sameerasw.essentials.weather.model.HourlyForecast
+import com.sameerasw.essentials.weather.model.WeatherExtras
 import com.sameerasw.essentials.weather.model.WeatherCondition
 import com.sameerasw.essentials.weather.model.WeatherLocation
 import com.sameerasw.essentials.weather.model.WeatherSnapshot
@@ -39,10 +41,11 @@ class OpenMeteoProvider : WeatherProvider {
 
     override suspend fun fetch(location: WeatherLocation, apiKey: String?): WeatherSnapshot {
         val url = "https://api.open-meteo.com/v1/forecast?latitude=${location.latitude}&longitude=${location.longitude}" +
-            "&current=temperature_2m,relative_humidity_2m,apparent_temperature,is_day,weather_code,wind_speed_10m" +
-            "&hourly=temperature_2m,precipitation_probability,weather_code,is_day" +
-            "&daily=temperature_2m_max,temperature_2m_min,precipitation_probability_max" +
-            "&forecast_days=2&timezone=auto&wind_speed_unit=kmh&timeformat=unixtime" +
+            "&current=temperature_2m,relative_humidity_2m,apparent_temperature,is_day,weather_code,wind_speed_10m," +
+            "surface_pressure,wind_gusts_10m,wind_direction_10m,cloud_cover,precipitation,dew_point_2m" +
+            "&hourly=temperature_2m,precipitation_probability,weather_code,is_day,visibility" +
+            "&daily=temperature_2m_max,temperature_2m_min,precipitation_probability_max,weather_code,uv_index_max,sunrise,sunset" +
+            "&forecast_days=7&timezone=auto&wind_speed_unit=kmh&timeformat=unixtime" +
             (OpenMeteoModels.selected()?.let { "&models=$it" } ?: "")
         val json = JSONObject(ProviderHttp.get(url))
         val place = location.name?.let { it to "" } ?: ProviderHttp.reverseGeocode(location.latitude, location.longitude)
@@ -84,6 +87,23 @@ class OpenMeteoProvider : WeatherProvider {
 
         val code = current.optInt("weather_code")
         val temp = current.getDouble("temperature_2m")
+        val visibilityArray = hourlyJson.optJSONArray("visibility")
+        val currentHourIndex = (0 until times.length()).firstOrNull { times.getLong(it) * 1000L + HOUR_MS > now } ?: 0
+        val dayTimes = daily.getJSONArray("time")
+        val dailyCodes = daily.optJSONArray("weather_code")
+        val dailyRain = daily.optJSONArray("precipitation_probability_max")
+        val dailyHigh = daily.getJSONArray("temperature_2m_max")
+        val dailyLow = daily.getJSONArray("temperature_2m_min")
+        val dailyList = (0 until dayTimes.length()).filter { !dailyHigh.isNull(it) && !dailyLow.isNull(it) }.map { i ->
+            DailyForecast(
+                dayMillis = dayTimes.getLong(i) * 1000L,
+                highC = dailyHigh.getDouble(i),
+                lowC = dailyLow.getDouble(i),
+                condition = conditionFor(dailyCodes?.optInt(i) ?: -1),
+                chanceOfRain = dailyRain?.optInt(i) ?: 0,
+            )
+        }
+        fun optNumber(name: String): Double? = if (current.has(name) && !current.isNull(name)) current.getDouble(name) else null
         return WeatherSnapshot(
             locationName = place?.first.orEmpty(),
             region = place?.second.orEmpty(),
@@ -101,6 +121,19 @@ class OpenMeteoProvider : WeatherProvider {
             alerts = emptyList(),
             updatedAt = now,
             providerId = id,
+            extras = WeatherExtras(
+                pressureHpa = optNumber("surface_pressure"),
+                visibilityKm = visibilityArray?.takeIf { !it.isNull(currentHourIndex) }?.getDouble(currentHourIndex)?.div(1000.0),
+                dewPointC = optNumber("dew_point_2m"),
+                cloudCover = optNumber("cloud_cover")?.toInt(),
+                uvIndex = daily.optJSONArray("uv_index_max")?.takeIf { !it.isNull(0) }?.getDouble(0),
+                windGustKph = optNumber("wind_gusts_10m"),
+                windDirectionDeg = optNumber("wind_direction_10m"),
+                precipitationMm = optNumber("precipitation"),
+                sunriseMillis = daily.optJSONArray("sunrise")?.takeIf { !it.isNull(0) }?.getLong(0)?.times(1000L),
+                sunsetMillis = daily.optJSONArray("sunset")?.takeIf { !it.isNull(0) }?.getLong(0)?.times(1000L),
+            ),
+            daily = dailyList,
         )
     }
 
@@ -145,6 +178,6 @@ class OpenMeteoProvider : WeatherProvider {
 
     private companion object {
         const val HOUR_MS = 60 * 60 * 1000L
-        const val HOURLY_COUNT = 8
+        const val HOURLY_COUNT = 24
     }
 }

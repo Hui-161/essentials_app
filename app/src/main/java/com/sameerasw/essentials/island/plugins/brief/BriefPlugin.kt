@@ -2,6 +2,8 @@ package com.sameerasw.essentials.island.plugins.brief
 
 import com.sameerasw.essentials.island.plugins.alarm.NextAlarm
 import com.sameerasw.essentials.island.plugins.weather.WeatherExpanded
+import com.sameerasw.essentials.island.plugins.weather.openWeatherDetails
+import com.sameerasw.essentials.island.model.InteractionOverrides
 import com.sameerasw.essentials.weather.effects.DeviceWeatherHaptics
 import com.sameerasw.essentials.weather.effects.WeatherEffectHaptics
 import com.sameerasw.essentials.weather.effects.WeatherEffectSpec
@@ -127,6 +129,7 @@ class BriefPlugin : BaseIslandPlugin() {
     override val id = "brief"
 
     private var pageOpen: (() -> Unit)? = null
+    private var weatherPage = false
 
     override val settingKeys = setOf(
         SettingsRepository.KEY_ISLAND_BRIEF_ENABLED,
@@ -168,9 +171,15 @@ class BriefPlugin : BaseIslandPlugin() {
                 placement = CompactPlacement.Dynamic,
                 compact = listOf(CompactCell("brief.placeholder") {}),
                 expanded = ExpandedContent { scope ->
-                    BriefExpanded(scope, iconStyle, alarmHours, calendarEnabled, calendarIds, showAllDay, showGlow, weather, twoLineHeader) { pageOpen = it }
+                    BriefExpanded(scope, iconStyle, alarmHours, calendarEnabled, calendarIds, showAllDay, showGlow, weather, twoLineHeader) { open, onWeatherPage ->
+                        pageOpen = open
+                        weatherPage = onWeatherPage
+                    }
                 },
                 onOpen = { pageOpen?.invoke() },
+                interactions = InteractionOverrides(
+                    onExpandedTap = { weatherPage.also { if (it) openWeatherDetails(context) } },
+                ),
                 compactVisible = false,
             ),
         )
@@ -192,7 +201,7 @@ private fun BriefExpanded(
     showGlow: Boolean,
     weather: BriefWeather,
     twoLineHeader: Boolean,
-    onPageOpenChanged: ((() -> Unit)?) -> Unit,
+    onPageOpenChanged: ((() -> Unit)?, Boolean) -> Unit,
 ) {
     val context = LocalContext.current
     val coroutineScope = rememberCoroutineScope()
@@ -205,8 +214,9 @@ private fun BriefExpanded(
                 BriefPage.Overview -> null
                 BriefPage.Player -> media?.open
                 is BriefPage.Event -> ({ openEvent(context, current.event) })
-                BriefPage.Weather -> null
+                BriefPage.Weather -> ({ openWeatherDetails(context) })
             },
+            current == BriefPage.Weather,
         )
     }
     LaunchedEffect(media == null) {

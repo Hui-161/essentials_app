@@ -1,6 +1,8 @@
 package com.sameerasw.essentials.weather.provider
 
 import com.sameerasw.essentials.weather.model.CityResult
+import com.sameerasw.essentials.weather.model.WeatherExtras
+import com.sameerasw.essentials.weather.model.DailyForecast
 import com.sameerasw.essentials.weather.model.HourlyForecast
 import com.sameerasw.essentials.weather.model.WeatherCondition
 import com.sameerasw.essentials.weather.model.WeatherLocation
@@ -65,6 +67,7 @@ class TomorrowIoProvider : WeatherProvider {
         }.take(HOURLY_COUNT)
 
         val today = days.getJSONObject(0).getJSONObject("values")
+        fun num(o: JSONObject, name: String): Double? = if (o.has(name) && !o.isNull(name)) o.getDouble(name) else null
         val temp = currentValues.getDouble("temperature")
         val code = currentValues.optInt("weatherCode")
         return WeatherSnapshot(
@@ -84,6 +87,29 @@ class TomorrowIoProvider : WeatherProvider {
             alerts = emptyList(),
             updatedAt = now,
             providerId = id,
+            extras = WeatherExtras(
+                pressureHpa = num(currentValues, "pressureSurfaceLevel"),
+                visibilityKm = num(currentValues, "visibility"),
+                dewPointC = num(currentValues, "dewPoint"),
+                cloudCover = num(currentValues, "cloudCover")?.toInt(),
+                uvIndex = num(currentValues, "uvIndex"),
+                windGustKph = num(currentValues, "windGust")?.times(3.6),
+                windDirectionDeg = num(currentValues, "windDirection"),
+                precipitationMm = num(currentValues, "rainIntensity"),
+                sunriseMillis = suns.firstOrNull()?.first,
+                sunsetMillis = suns.firstOrNull()?.second,
+            ),
+            daily = (0 until days.length()).map { i ->
+                val d = days.getJSONObject(i)
+                val v = d.getJSONObject("values")
+                DailyForecast(
+                    dayMillis = Instant.parse(d.getString("time")).toEpochMilli(),
+                    highC = v.optDouble("temperatureMax", temp),
+                    lowC = v.optDouble("temperatureMin", temp),
+                    condition = conditionFor(v.optInt("weatherCodeMax", v.optInt("weatherCode"))),
+                    chanceOfRain = v.optDouble("precipitationProbabilityMax", 0.0).toInt(),
+                )
+            },
         )
     }
 
@@ -127,6 +153,6 @@ class TomorrowIoProvider : WeatherProvider {
 
     private companion object {
         const val HOUR_MS = 60 * 60 * 1000L
-        const val HOURLY_COUNT = 8
+        const val HOURLY_COUNT = 24
     }
 }

@@ -1,6 +1,7 @@
 package com.sameerasw.essentials.weather.provider
 
 import com.sameerasw.essentials.weather.model.CityResult
+import com.sameerasw.essentials.weather.model.WeatherExtras
 import com.sameerasw.essentials.weather.model.HourlyForecast
 import com.sameerasw.essentials.weather.model.WeatherCondition
 import com.sameerasw.essentials.weather.model.WeatherLocation
@@ -102,6 +103,15 @@ class OpenWeatherMapProvider : WeatherProvider {
             alerts = emptyList(),
             updatedAt = now,
             providerId = id,
+            extras = WeatherExtras(
+                pressureHpa = main.optDouble("pressure").takeUnless { it.isNaN() },
+                visibilityKm = current.optDouble("visibility").takeUnless { it.isNaN() }?.div(1000.0),
+                cloudCover = current.optJSONObject("clouds")?.optInt("all", -1)?.takeIf { it >= 0 },
+                windGustKph = current.optJSONObject("wind")?.optDouble("gust")?.takeUnless { it.isNaN() }?.times(3.6),
+                windDirectionDeg = current.optJSONObject("wind")?.optDouble("deg")?.takeUnless { it.isNaN() },
+                sunriseMillis = sunrise.takeIf { it > 0 }?.times(1000L),
+                sunsetMillis = sunset.takeIf { it > 0 }?.times(1000L),
+            ),
         )
     }
 
@@ -123,6 +133,6 @@ class OpenWeatherMapProvider : WeatherProvider {
     private companion object {
         const val BASE_URL = "https://api.openweathermap.org"
         const val THREE_HOURS_MS = 3 * 60 * 60 * 1000L
-        const val HOURLY_COUNT = 8
+        const val HOURLY_COUNT = 24
     }
 }

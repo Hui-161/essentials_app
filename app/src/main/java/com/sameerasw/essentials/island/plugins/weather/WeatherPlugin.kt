@@ -7,6 +7,8 @@ import android.text.format.DateFormat
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.ui.unit.dp
 import com.sameerasw.essentials.R
+import com.sameerasw.essentials.ui.activities.WeatherDetailActivity
+import android.content.Intent
 import com.sameerasw.essentials.data.repository.SettingsRepository
 import com.sameerasw.essentials.island.model.CompactCell
 import com.sameerasw.essentials.island.model.CompactPlacement
@@ -163,6 +165,8 @@ class WeatherPlugin : BaseIslandPlugin() {
                             if (brief) ctx?.request?.invoke(PluginRequest.Expand(BriefPlugin.ITEM_KEY))
                         }
                     },
+                    onLongPress = { openWeatherDetails(context) },
+                    onExpandedTap = { openWeatherDetails(context); true },
                 ),
                 compactVisible = compactVisible,
             ),
@@ -176,5 +180,15 @@ class WeatherPlugin : BaseIslandPlugin() {
 
     companion object {
         const val ITEM_KEY = "weather"
+    }
+}
+
+fun openWeatherDetails(context: android.content.Context) {
+    try {
+        context.startActivity(
+            Intent(context, WeatherDetailActivity::class.java)
+                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP),
+        )
+    } catch (_: Exception) {
     }
 }

@@ -2,6 +2,8 @@ package com.sameerasw.essentials.weather.provider
 
 import com.sameerasw.essentials.weather.model.AlertSeverity
 import com.sameerasw.essentials.weather.model.CityResult
+import com.sameerasw.essentials.weather.model.WeatherExtras
+import com.sameerasw.essentials.weather.model.DailyForecast
 import com.sameerasw.essentials.weather.model.HourlyForecast
 import com.sameerasw.essentials.weather.model.WeatherAlert
 import com.sameerasw.essentials.weather.model.WeatherCondition
@@ -36,7 +38,9 @@ class PirateWeatherProvider : WeatherProvider {
         val now = System.currentTimeMillis()
         val current = json.getJSONObject("currently")
         val hourlyData = json.getJSONObject("hourly").getJSONArray("data")
-        val dailyToday = json.getJSONObject("daily").getJSONArray("data").getJSONObject(0)
+        val dailyArray = json.getJSONObject("daily").getJSONArray("data")
+        val dailyToday = dailyArray.getJSONObject(0)
+        fun num(o: JSONObject, name: String): Double? = if (o.has(name) && !o.isNull(name)) o.getDouble(name) else null
 
         val hourly = buildList {
             for (i in 0 until hourlyData.length()) {
@@ -95,6 +99,28 @@ class PirateWeatherProvider : WeatherProvider {
             alerts = alerts,
             updatedAt = now,
             providerId = id,
+            extras = WeatherExtras(
+                pressureHpa = num(current, "pressure"),
+                visibilityKm = num(current, "visibility"),
+                dewPointC = num(current, "dewPoint"),
+                cloudCover = num(current, "cloudCover")?.times(100)?.toInt(),
+                uvIndex = num(current, "uvIndex"),
+                windGustKph = num(current, "windGust")?.times(3.6),
+                windDirectionDeg = num(current, "windBearing"),
+                precipitationMm = num(current, "precipIntensity"),
+                sunriseMillis = num(dailyToday, "sunriseTime")?.toLong()?.times(1000L),
+                sunsetMillis = num(dailyToday, "sunsetTime")?.toLong()?.times(1000L),
+            ),
+            daily = (0 until dailyArray.length()).map { i ->
+                val d = dailyArray.getJSONObject(i)
+                DailyForecast(
+                    dayMillis = d.getLong("time") * 1000L,
+                    highC = d.optDouble("temperatureHigh", d.optDouble("temperatureMax", temp)),
+                    lowC = d.optDouble("temperatureLow", d.optDouble("temperatureMin", temp)),
+                    condition = conditionFor(d.optString("icon"), d.optDouble("precipIntensity", 0.0)),
+                    chanceOfRain = (d.optDouble("precipProbability", 0.0) * 100).toInt(),
+                )
+            },
         )
     }
 
@@ -126,6 +152,6 @@ class PirateWeatherProvider : WeatherProvider {
 
     private companion object {
         const val HOUR_MS = 60 * 60 * 1000L
-        const val HOURLY_COUNT = 8
+        const val HOURLY_COUNT = 24
     }
 }

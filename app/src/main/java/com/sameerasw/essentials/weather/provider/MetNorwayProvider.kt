@@ -1,6 +1,7 @@
 package com.sameerasw.essentials.weather.provider
 
 import com.sameerasw.essentials.weather.model.CityResult
+import com.sameerasw.essentials.weather.model.WeatherExtras
 import com.sameerasw.essentials.weather.model.HourlyForecast
 import com.sameerasw.essentials.weather.model.WeatherCondition
 import com.sameerasw.essentials.weather.model.WeatherLocation
@@ -89,6 +90,14 @@ class MetNorwayProvider : WeatherProvider {
             alerts = emptyList(),
             updatedAt = now,
             providerId = id,
+            extras = WeatherExtras(
+                pressureHpa = details.optDouble("air_pressure_at_sea_level").takeUnless { it.isNaN() },
+                dewPointC = details.optDouble("dew_point_temperature").takeUnless { it.isNaN() },
+                cloudCover = details.optDouble("cloud_area_fraction").takeUnless { it.isNaN() }?.toInt(),
+                windGustKph = details.optDouble("wind_speed_of_gust").takeUnless { it.isNaN() }?.times(3.6),
+                windDirectionDeg = details.optDouble("wind_from_direction").takeUnless { it.isNaN() },
+                uvIndex = details.optDouble("ultraviolet_index_clear_sky").takeUnless { it.isNaN() },
+            ),
         )
     }
 
@@ -141,6 +150,6 @@ class MetNorwayProvider : WeatherProvider {
 
     private companion object {
         const val HOUR_MS = 60 * 60 * 1000L
-        const val HOURLY_COUNT = 8
+        const val HOURLY_COUNT = 24
     }
 }
