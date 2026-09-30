@@ -127,10 +127,18 @@ fun WeatherScreen() {
     val state by WeatherRepository.state.collectAsState()
     val snapshot = state.snapshot
     val unit = remember { WeatherFormat.unitFor(settings.getWeatherUnits()) }
-    val materialYou = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) dynamicDarkColorScheme(context).primary else null
-    val palette = remember(snapshot?.condition, snapshot?.isDay, materialYou) {
-        WeatherPalette.from(snapshot).let { base -> materialYou?.let(base::withAccent) ?: base }
+    var now by remember { mutableLongStateOf(System.currentTimeMillis()) }
+    LaunchedEffect(Unit) {
+        while (true) {
+            delay(60_000L)
+            now = System.currentTimeMillis()
+        }
     }
+    val palette = animatedPalette(
+        remember(snapshot?.condition, snapshot?.isDay, snapshot?.extras?.sunriseMillis, snapshot?.extras?.sunsetMillis, now / 60_000L) {
+            WeatherPalette.from(snapshot, now)
+        },
+    )
     val effects = remember { settings.isIslandWeatherEffectsEnabled() && !DeviceUtils.isPowerSaveMode(context) }
     val effectSpec = remember(effects, snapshot?.condition, snapshot?.isDay, snapshot?.windKph) {
         snapshot?.takeIf { effects }?.let(WeatherEffectSpec::from) ?: WeatherEffectSpec.None
@@ -163,12 +171,20 @@ fun WeatherScreen() {
                 Box(
                     Modifier
                         .matchParentSize()
-                        .background(Brush.verticalGradient(0f to palette.glow, 0.6f to palette.base, 1f to palette.base)),
+                        .background(
+                            Brush.verticalGradient(
+                                0f to palette.glow,
+                                0.4f to palette.glowSecondary,
+                                0.8f to palette.base,
+                                1f to palette.base,
+                            ),
+                        ),
                 )
                 if (!effectSpec.isEmpty) {
                     WeatherEffects(
                         spec = effectSpec,
                         modifier = Modifier.matchParentSize(),
+                        strength = 1.7f,
                         haptics = effectHaptics,
                         surfaces = { rainSurfaces.values.filter { it.top >= headerBottom.floatValue } },
                     )
