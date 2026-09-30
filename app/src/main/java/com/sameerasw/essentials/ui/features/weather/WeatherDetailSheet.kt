@@ -1,6 +1,8 @@
 package com.sameerasw.essentials.ui.features.weather
 
 import android.content.Context
+import com.sameerasw.essentials.weather.effects.WeatherEffectHaptics
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.ui.layout.positionInRoot
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.runtime.mutableStateOf
@@ -119,14 +121,26 @@ import java.util.Date
 import java.util.Locale
 import kotlin.math.roundToInt
 
-@OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class)
+internal class WeatherPresentation(
+    val snapshot: WeatherSnapshot?,
+    val palette: WeatherPalette,
+    val effectSpec: WeatherEffectSpec,
+    val unit: TemperatureUnit,
+    val now: Long,
+    val haptics: WeatherEffectHaptics?,
+)
+
 @Composable
-fun WeatherScreen() {
+internal fun rememberWeatherPresentation(real: WeatherSnapshot?): WeatherPresentation {
     val context = LocalContext.current
-    val view = LocalView.current
-    val scope = rememberCoroutineScope()
     val settings = remember { SettingsRepository(context) }
-    val state by WeatherRepository.state.collectAsState()
+    var settingsVersion by remember { mutableIntStateOf(0) }
+    androidx.compose.runtime.DisposableEffect(context) {
+        val prefs = context.getSharedPreferences(SettingsRepository.PREFS_NAME, Context.MODE_PRIVATE)
+        val listener = android.content.SharedPreferences.OnSharedPreferenceChangeListener { _, _ -> settingsVersion++ }
+        prefs.registerOnSharedPreferenceChangeListener(listener)
+        onDispose { prefs.unregisterOnSharedPreferenceChangeListener(listener) }
+    }
     var simulationId by remember { mutableStateOf(settings.getString(SettingsRepository.KEY_DEBUG_SIMULATED_WEATHER, WeatherSimulation.OFF)) }
     val lifecycleOwner = androidx.lifecycle.compose.LocalLifecycleOwner.current
     androidx.compose.runtime.DisposableEffect(lifecycleOwner) {
@@ -138,9 +152,9 @@ fun WeatherScreen() {
         lifecycleOwner.lifecycle.addObserver(observer)
         onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
     }
-    val simulation = WeatherSimulation.find(simulationId)
-    val snapshot = state.snapshot?.let { real -> simulation?.let { WeatherSimulation.apply(real, it) } ?: real }
-    val unit = remember { WeatherFormat.unitFor(settings.getWeatherUnits()) }
+    val simulation = WeatherSimulation.find(simulationId ?: WeatherSimulation.OFF)
+    val snapshot = real?.let { r -> simulation?.let { WeatherSimulation.apply(r, it) } ?: r }
+    val unit = remember(settingsVersion) { WeatherFormat.unitFor(settings.getWeatherUnits()) }
     var now by remember { mutableLongStateOf(System.currentTimeMillis()) }
     LaunchedEffect(Unit) {
         while (true) {
@@ -153,11 +167,31 @@ fun WeatherScreen() {
             WeatherPalette.from(snapshot, now)
         },
     )
-    val effects = remember { settings.isIslandWeatherEffectsEnabled() && !DeviceUtils.isPowerSaveMode(context) }
+    val effects = remember(settingsVersion) { settings.isIslandWeatherEffectsEnabled() && !DeviceUtils.isPowerSaveMode(context) }
+    val haptics = remember(settingsVersion, effects) {
+        DeviceWeatherHaptics(context).takeIf { effects && settings.isIslandWeatherHapticsEnabled() }
+    }
     val effectSpec = remember(effects, snapshot?.condition, snapshot?.isDay, snapshot?.windKph, simulation?.id) {
         snapshot?.takeIf { effects }?.let { simulation?.spec ?: WeatherEffectSpec.from(it) } ?: WeatherEffectSpec.None
     }
-    val effectHaptics = remember(context) { DeviceWeatherHaptics(context).takeIf { settings.isIslandWeatherHapticsEnabled() } }
+    return WeatherPresentation(snapshot, palette, effectSpec, unit, now, haptics)
+}
+
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class)
+@Composable
+fun WeatherScreen() {
+    val context = LocalContext.current
+    val view = LocalView.current
+    val scope = rememberCoroutineScope()
+    val settings = remember { SettingsRepository(context) }
+    val state by WeatherRepository.state.collectAsState()
+    val presentation = rememberWeatherPresentation(state.snapshot)
+    val snapshot = presentation.snapshot
+    val unit = presentation.unit
+    val now = presentation.now
+    val palette = presentation.palette
+    val effectSpec = presentation.effectSpec
+    val effectHaptics = presentation.haptics
 
     val requestLocation = rememberLocationPermissionRequest { granted ->
         if (granted) scope.launch { WeatherRepository.refresh(context, force = true) }
@@ -409,7 +443,7 @@ private fun LocationChip(snapshot: WeatherSnapshot, palette: WeatherPalette, mod
     )
 }
 
-private fun Modifier.foldAway(fraction: Float): Modifier =
+internal fun Modifier.foldAway(fraction: Float): Modifier =
     this
         .layout { measurable, constraints ->
             val placeable = measurable.measure(constraints)
@@ -420,7 +454,7 @@ private fun Modifier.foldAway(fraction: Float): Modifier =
 private val temperatureFonts = java.util.concurrent.ConcurrentHashMap<Int, FontFamily>()
 
 @OptIn(ExperimentalTextApi::class)
-private fun temperatureFont(widthAxis: Int, weightAxis: Int): FontFamily =
+internal fun temperatureFont(widthAxis: Int, weightAxis: Int): FontFamily =
     temperatureFonts.getOrPut(widthAxis * 10_000 + weightAxis) {
         FontFamily(
             Font(
