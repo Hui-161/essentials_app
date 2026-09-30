@@ -306,7 +306,6 @@ fun WeatherScreen() {
     }
 }
 
-// A faint sun or moon crossing the top of the screen right to left, only when sunrise and sunset are known.
 @Composable
 private fun SkyBody(snapshot: WeatherSnapshot, now: Long, collapse: () -> Float) {
     val rise = snapshot.extras?.sunriseMillis ?: return
@@ -348,14 +347,12 @@ private fun SkyBody(snapshot: WeatherSnapshot, now: Long, collapse: () -> Float)
     }
 }
 
-// Container bounds the rain can land on, keyed so each one can register and unregister itself.
 private val LocalRainSurfaces = androidx.compose.runtime.staticCompositionLocalOf<androidx.compose.runtime.snapshots.SnapshotStateMap<String, androidx.compose.ui.geometry.Rect>?> { null }
 
 @Composable
 private fun Modifier.rainSurface(key: String): Modifier {
     val registry = LocalRainSurfaces.current ?: return this
     androidx.compose.runtime.DisposableEffect(key) { onDispose { registry.remove(key) } }
-    // boundsInRoot() is clipped to the viewport, which would pin scrolled-away cards to the top edge.
     return this.onGloballyPositioned {
         val position = it.positionInRoot()
         registry[key] = androidx.compose.ui.geometry.Rect(position, androidx.compose.ui.geometry.Size(it.size.width.toFloat(), it.size.height.toFloat()))
@@ -397,18 +394,20 @@ private fun Modifier.foldAway(fraction: Float): Modifier =
 private val temperatureFonts = java.util.concurrent.ConcurrentHashMap<Int, FontFamily>()
 
 @OptIn(ExperimentalTextApi::class)
-private fun temperatureFont(widthAxis: Int): FontFamily = temperatureFonts.getOrPut(widthAxis) {
-    FontFamily(
-        Font(
-            R.font.google_sans_flex,
-            variationSettings = FontVariation.Settings(
-                FontVariation.width(widthAxis.toFloat()),
-                FontVariation.weight(FontWeight.Normal.weight),
-                FontVariation.Setting("ROND", 100f),
+private fun temperatureFont(widthAxis: Int, weightAxis: Int): FontFamily =
+    temperatureFonts.getOrPut(widthAxis * 10_000 + weightAxis) {
+        FontFamily(
+            Font(
+                R.font.google_sans_flex,
+                weight = FontWeight(weightAxis),
+                variationSettings = FontVariation.Settings(
+                    FontVariation.width(widthAxis.toFloat()),
+                    FontVariation.weight(weightAxis),
+                    FontVariation.Setting("ROND", 100f),
+                ),
             ),
-        ),
-    )
-}
+        )
+    }
 
 @Composable
 private fun Header(snapshot: WeatherSnapshot, unit: TemperatureUnit, palette: WeatherPalette, progress: Float, modifier: Modifier) {
@@ -421,8 +420,7 @@ private fun Header(snapshot: WeatherSnapshot, unit: TemperatureUnit, palette: We
     val expanded = minOf(if (number.length >= 3) 290f else 390f, heightCap)
     val size = lerp(expanded, 44f, progress).sp
     
-    val font = temperatureFont(lerp(52f, 125f, progress).roundToInt())
-    // The stacked/one-row switch is time-based and flips near the end of the collapse, with a little hysteresis.
+    val font = temperatureFont(lerp(52f, 125f, progress).roundToInt(), lerp(1f, 800f, progress).roundToInt())
     var combined by remember { mutableStateOf(false) }
     if (progress >= COMBINE_AT) combined = true else if (progress < COMBINE_AT - 0.08f) combined = false
     val morph by animateFloatAsState(if (combined) 1f else 0f, tween(320), label = "weatherHeaderMorph")
@@ -433,7 +431,6 @@ private fun Header(snapshot: WeatherSnapshot, unit: TemperatureUnit, palette: We
             gap = lerp(4f, 16f, morph).dp,
             digits = {
                 Row(verticalAlignment = Alignment.Top) {
-                    // A hidden degree sign on the left mirrors the real one so the digits stay centered.
                     DegreeSign(size, font, Color.Transparent)
                     Text(
                         number,
@@ -474,7 +471,6 @@ private fun Header(snapshot: WeatherSnapshot, unit: TemperatureUnit, palette: We
     }
 }
 
-// Stacked when expanded; slides into one row (digits then condition) as progress reaches 1.
 @Composable
 private fun TemperatureAndCondition(
     progress: Float,

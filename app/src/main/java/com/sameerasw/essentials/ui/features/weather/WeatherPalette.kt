@@ -10,7 +10,6 @@ import com.sameerasw.essentials.weather.model.WeatherCondition
 import com.sameerasw.essentials.weather.model.WeatherSnapshot
 import java.util.Calendar
 
-// Near-black base like the island; the glow layers and accent follow the time of day blended with the conditions.
 class WeatherPalette(
     val glow: Color,
     val glowSecondary: Color,
@@ -48,7 +47,6 @@ class WeatherPalette(
             val rise = snapshot.extras?.sunriseMillis
             val set = snapshot.extras?.sunsetMillis
             if (rise != null && set != null) {
-                // Providers give today's times; shift them to today so the phase stays right after midnight.
                 val day = 24 * 60 * 60_000L
                 val shift = Math.floorDiv(now - rise, day) * day
                 val r = rise + shift
