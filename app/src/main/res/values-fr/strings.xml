@@ -429,7 +429,7 @@
     <string name="feat_app_lock_desc">Protégez les applis avec la biométrie</string>
     <string name="app_lock_auto_lock_delay_title">Auto lock delay</string>
     <string name="app_lock_auto_lock_delay_desc">After leaving the app</string>
-    <string name="app_lock_auto_lock_delay_none">None</string>
+    <string name="app_lock_auto_lock_delay_none">Rien</string>
     <string name="app_lock_auto_lock_delay_1min">1 minute</string>
     <string name="app_lock_auto_lock_delay_5min">5 minutes</string>
     <string name="app_lock_auto_lock_delay_10min">10 minutes</string>
@@ -1428,7 +1428,7 @@ Option nativement disponible sur les appareils Samsung (appli QuickStar)</string
     <string name="lock_screen_clock_inflate">Inflate</string>
     <string name="lock_screen_clock_metro">Metro</string>
     <string name="lock_screen_clock_numoverlap">Number Overlap</string>
-    <string name="lock_screen_clock_weather">Weather</string>
+    <string name="lock_screen_clock_weather">Météo</string>
     <string name="lock_screen_clock_select_label">Select Clock Style</string>
     <string name="lock_screen_clock_current_label">Current</string>
     <string name="lock_screen_clock_apply_label">Apply</string>
@@ -1572,7 +1572,7 @@ Option nativement disponible sur les appareils Samsung (appli QuickStar)</string
     <string name="watch_complications_desc">Customiser les widgets des complications </string>
     <string name="watch_notif_sync_choose_apps_desc">Seulement les applications sélectionnées seront synchronisées avec la montre</string>
     <string name="watch_notif_sync_choose_apps">Choisir les applications </string>
-    <string name="watch_call_sync_desc">Seulement pour la launcher</string>
+    <string name="watch_call_sync_desc">Seulement pour le launcher</string>
     <string name="watch_notif_sync_desc">Seulement pour le launcher</string>
     <string name="watch_call_sync_title">Appels</string>
     <string name="feat_sync_location_reached_title">Statut de On est arrivés ?</string>
@@ -1599,7 +1599,7 @@ Option nativement disponible sur les appareils Samsung (appli QuickStar)</string
     <string name="duo_material_you_title">Utiliser les couleurs Material You</string>
     <string name="duo_hide_when_screen_off_title">Cacher quand l\'écran est éteint</string>
     <string name="duo_hide_when_screen_off_only_idle_title">Seulement cacher quand l\'AOD est éteint</string>
-    <string name="duo_desc">Ça ne se plie pas</string>
+    <string name="duo_desc">Il ne se plie pas, mais fait des trucs vraiment cool</string>
     <string name="duo_auto_detect_desc">Trouver automatiquement l\'emplacement du trou de la caméra</string>
     <string name="duo_show_battery_percentage_title">Pourcentage de batterie</string>
     <string name="duo_show_battery_title">Batterie</string>
@@ -1612,4 +1612,30 @@ Option nativement disponible sur les appareils Samsung (appli QuickStar)</string
     <string name="setting_show_legacy_features_desc">Ces fonctionnalités pourraient ne pas bénéficier de futures mises à jour en raison de limitations techniques ou parce qu\'elles ne sont pas essentielles.</string>
     <string name="duo_rotate_album_art_title">Faire pivoter la pochette d\'album</string>
     <string name="island_hide_on_shade_title">Masquer lorsque la barre d\'état est déployée</string>
+    <string name="status_glance_bold_text_title">Texte en gras</string>
+    <string name="status_glance_bold_text_desc">Le texte en gras pour une meilleure lisibilité </string>
+    <string name="status_glance_album_art_colors_title">Couleurs de l\'album</string>
+    <string name="status_glance_hide_in_quick_settings_title">Cacher dans les paramètres rapides</string>
+    <string name="status_glance_hide_when_locked_title">Cacher sur l\'écran de verrouillage</string>
+    <string name="island_action_tap_title">Appui simple</string>
+    <string name="duo_action_double_tap_title">Double appui</string>
+    <string name="duo_action_long_press_title">Appui long</string>
+    <string name="status_glance_action_swipe_right_title">Swiper vers la droite </string>
+    <string name="status_glance_show_calendar_title">Évenements</string>
+    <string name="feat_aod_wallpaper_title">Fond d\'écran sur AOD</string>
+    <string name="island_enable_title">Activer Island</string>
+    <string name="island_show_calls_title">Appels</string>
+    <string name="island_show_time_battery_title">Horloge et batterie</string>
+    <string name="island_show_timers_title">Minuteurs et chronomètres</string>
+    <string name="duo_action_horizontal_slide_sound_mode">Mode son</string>
+    <string name="island_devices_battery_section">Appareils</string>
+    <string name="island_show_network_title">Activité réseau</string>
+    <string name="feat_status_glance_title">Aperçu du statut</string>
+    <string name="feat_status_glance_desc">Affichage rapide du statut de certaines options de l\'appareil</string>
+    <string name="feat_conscious_gate_title">Barrière de conscience</string>
+    <string name="feat_conscious_gate_desc">Faites une pause avant d\'ouvrir certaines applications</string>
+    <string name="duo_enable_desc">Il ne se plie pas, mais fait des trucs vraiment cool</string>
+    <string name="duo_action_tap_title">Appui</string>
+    <string name="duo_action_swipe_down_title">Glissement vers le bas</string>
+    <string name="duo_action_horizontal_slide_title">Glissement horizontal</string>
 </resources>
