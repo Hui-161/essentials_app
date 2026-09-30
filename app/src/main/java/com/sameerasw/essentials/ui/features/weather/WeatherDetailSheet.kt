@@ -20,6 +20,7 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.layout
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.ui.geometry.Offset
+import com.sameerasw.essentials.ui.modifiers.rainOnGlass
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.input.nestedscroll.NestedScrollSource
 import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
@@ -212,9 +213,24 @@ fun WeatherScreen() {
         shapes = Shapes,
     ) {
         androidx.compose.runtime.CompositionLocalProvider(LocalRainSurfaces provides rainSurfaces) {
-        Box(Modifier.fillMaxSize()) {
-                val density = LocalDensity.current
-                val collapse = remember { mutableFloatStateOf(0f) }
+        val glassRain = effectSpec.layers.filterIsInstance<com.sameerasw.essentials.weather.effects.WeatherEffectLayer.Rain>().maxByOrNull { it.intensity }
+        val density = LocalDensity.current
+        val collapse = remember { mutableFloatStateOf(0f) }
+        val sky = snapshot?.let { skyState(it, now) }
+        val skyHeightPx = with(density) { SKY_HEIGHT.toPx() }
+        val collapseShiftPx = with(density) { 60.dp.toPx() }
+        val fallbackYPx = with(density) { 150.dp.toPx() }
+        Box(Modifier.fillMaxSize().rainOnGlass(glassRain?.intensity ?: 0f, glassRain?.slant ?: 0f) {
+            if (sky == null) {
+                androidx.compose.ui.geometry.Offset(0.5f, fallbackYPx - collapse.floatValue * collapseShiftPx)
+            } else {
+                val t = sky.first
+                androidx.compose.ui.geometry.Offset(
+                    0.9f - 0.8f * t,
+                    skyHeightPx * (0.66f - 0.4f * kotlin.math.sin(Math.PI.toFloat() * t)) - collapse.floatValue * collapseShiftPx,
+                )
+            }
+        }) {
                 Box(
                     Modifier
                         .matchParentSize()
@@ -358,10 +374,9 @@ fun WeatherScreen() {
     }
 }
 
-@Composable
-private fun SkyBody(snapshot: WeatherSnapshot, now: Long, collapse: () -> Float) {
-    val rise = snapshot.extras?.sunriseMillis ?: return
-    val set = snapshot.extras?.sunsetMillis ?: return
+private fun skyState(snapshot: WeatherSnapshot, now: Long): Pair<Float, Boolean>? {
+    val rise = snapshot.extras?.sunriseMillis ?: return null
+    val set = snapshot.extras?.sunsetMillis ?: return null
     val day = 24 * 60 * 60_000L
     val shift = Math.floorDiv(now - rise, day) * day
     val r = rise + shift
@@ -372,6 +387,14 @@ private fun SkyBody(snapshot: WeatherSnapshot, now: Long, collapse: () -> Float)
         now > s -> (now - s).toFloat() / ((r + day) - s).coerceAtLeast(1L)
         else -> (now - (s - day)).toFloat() / (r - (s - day)).coerceAtLeast(1L)
     }.coerceIn(0f, 1f)
+    return t to isSun
+}
+
+private val SKY_HEIGHT = 360.dp
+
+@Composable
+private fun SkyBody(snapshot: WeatherSnapshot, now: Long, collapse: () -> Float) {
+    val (t, isSun) = skyState(snapshot, now) ?: return
     val hide = (1f - collapse() * 1.6f).coerceIn(0f, 1f)
     if (hide <= 0f) return
     val horizonFade = (minOf(t, 1f - t) / 0.1f).coerceIn(0f, 1f)
@@ -379,7 +402,7 @@ private fun SkyBody(snapshot: WeatherSnapshot, now: Long, collapse: () -> Float)
     androidx.compose.foundation.Canvas(
         Modifier
             .fillMaxWidth()
-            .height(360.dp)
+            .height(SKY_HEIGHT)
             .graphicsLayer { translationY = -collapse() * 60.dp.toPx() },
     ) {
         val x = size.width * (0.9f - 0.8f * t)
