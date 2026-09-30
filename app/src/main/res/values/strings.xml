@@ -2884,6 +2884,7 @@
     <string name="island_show_when_screen_on">Screen on</string>
     <string name="island_show_when_always">Always</string>
     <string name="island_notif_conceal_locked_title">Conceal notification content</string>
+    <string name="island_notif_conceal_chat_pictures_title">Hide chat pictures</string>
     <string name="island_calendar_hide_locked_title">Hide when locked</string>
     <string name="island_call_options_title">Calls</string>
     <string name="island_call_show_mode_title">How to show</string>
