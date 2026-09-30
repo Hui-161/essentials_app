@@ -32,7 +32,9 @@ import androidx.compose.ui.unit.dp
 import kotlin.math.PI
 import kotlin.math.abs
 import kotlin.math.floor
+import kotlin.math.min
 import kotlin.math.roundToInt
+import kotlin.math.sqrt
 import kotlin.math.sin
 import kotlin.random.Random
 
@@ -65,7 +67,7 @@ fun WeatherEffects(
     strength: Float = 1f,
     clearTop: Dp = 0.dp,
     haptics: WeatherEffectHaptics? = null,
-    surfaces: () -> List<Rect> = { emptyList() },
+    surfaces: () -> List<RainSurface> = { emptyList() },
 ) {
     if (spec.isEmpty) return
     val density = LocalDensity.current
@@ -216,10 +218,19 @@ private fun emitHaptics(
     }
 }
 
+class RainSurface(val rect: Rect, val cornerRadius: Float) {
+    fun topAt(x: Float): Float {
+        if (x < rect.left || x > rect.right) return Float.MAX_VALUE
+        val r = min(cornerRadius, min(rect.width, rect.height) / 2f)
+        val dx = if (x < rect.left + r) rect.left + r - x else if (x > rect.right - r) x - (rect.right - r) else 0f
+        return if (dx <= 0f) rect.top else rect.top + r - sqrt(maxOf(r * r - dx * dx, 0f))
+    }
+}
+
 private class Landing(val ledge: Float, val x: Float)
 
 private fun landingFor(
-    surfaces: List<Rect>,
+    surfaces: List<RainSurface>,
     i: Int,
     cycle: Int,
     length: Float,
@@ -233,13 +244,14 @@ private fun landingFor(
     fun headX(at: Float) = wrap(fx * w + slant * (at - length), w) + slant * length
     var probe = h / 2f
     var ledge = Float.MAX_VALUE
-    repeat(2) {
+    repeat(3) {
         ledge = ledgeFor(surfaces, headX(probe), depth)
         if (ledge == Float.MAX_VALUE) return null
         probe = ledge
     }
     val x = headX(ledge)
-    return if (surfaces.any { x >= it.left && x <= it.right && it.top == ledge }) Landing(ledge, x) else null
+    ledge = ledgeFor(surfaces, x, depth)
+    return if (ledge == Float.MAX_VALUE) null else Landing(ledge, x)
 }
 
 private fun DrawScope.drawRain(
@@ -247,7 +259,7 @@ private fun DrawScope.drawRain(
     layer: WeatherEffectLayer.Rain,
     t: Float,
     strength: Float,
-    surfaces: List<Rect>,
+    surfaces: List<RainSurface>,
 ) {
     val field = state.field
     val w = size.width
@@ -303,12 +315,15 @@ private fun surfaceDepth(i: Int, cycle: Int): Int {
 }
 
 // Top of the (depth + 1)th surface covering this column, counted from the top down.
-private fun ledgeFor(surfaces: List<Rect>, x: Float, depth: Int): Float {
+private fun ledgeFor(surfaces: List<RainSurface>, x: Float, depth: Int): Float {
     var floor = -Float.MAX_VALUE
     var found = Float.MAX_VALUE
     for (n in 0..depth) {
         found = Float.MAX_VALUE
-        for (r in surfaces) if (x >= r.left && x <= r.right && r.top > floor && r.top < found) found = r.top
+        for (r in surfaces) {
+            val top = r.topAt(x)
+            if (top > floor && top < found) found = top
+        }
         if (found == Float.MAX_VALUE) return Float.MAX_VALUE
         floor = found
     }

@@ -21,6 +21,7 @@ import androidx.compose.ui.layout.layout
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.ui.geometry.Offset
 import com.sameerasw.essentials.ui.modifiers.rainOnGlass
+import com.sameerasw.essentials.weather.effects.RainSurface
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.input.nestedscroll.NestedScrollSource
 import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
@@ -196,7 +197,7 @@ fun WeatherScreen() {
         if (needsLocation) requestLocation() else if (WeatherRepository.isStale(context)) WeatherRepository.refresh(context)
     }
 
-    val rainSurfaces = remember { androidx.compose.runtime.mutableStateMapOf<String, androidx.compose.ui.geometry.Rect>() }
+    val rainSurfaces = remember { androidx.compose.runtime.mutableStateMapOf<String, RainSurface>() }
     val headerBottom = remember { mutableFloatStateOf(0f) }
 
     MaterialTheme(
@@ -250,7 +251,7 @@ fun WeatherScreen() {
                         modifier = Modifier.matchParentSize(),
                         strength = 1.7f,
                         haptics = effectHaptics,
-                        surfaces = { rainSurfaces.values.filter { it.top >= headerBottom.floatValue } },
+                        surfaces = { rainSurfaces.values.filter { it.rect.top >= headerBottom.floatValue } },
                     )
                 }
                 val scrollState = rememberScrollState()
@@ -422,15 +423,16 @@ private fun SkyBody(snapshot: WeatherSnapshot, now: Long, collapse: () -> Float)
     }
 }
 
-private val LocalRainSurfaces = androidx.compose.runtime.staticCompositionLocalOf<androidx.compose.runtime.snapshots.SnapshotStateMap<String, androidx.compose.ui.geometry.Rect>?> { null }
+private val LocalRainSurfaces = androidx.compose.runtime.staticCompositionLocalOf<androidx.compose.runtime.snapshots.SnapshotStateMap<String, RainSurface>?> { null }
 
 @Composable
-private fun Modifier.rainSurface(key: String): Modifier {
+private fun Modifier.rainSurface(key: String, corner: androidx.compose.ui.unit.Dp = 28.dp): Modifier {
     val registry = LocalRainSurfaces.current ?: return this
+    val cornerPx = with(LocalDensity.current) { corner.toPx() }
     androidx.compose.runtime.DisposableEffect(key) { onDispose { registry.remove(key) } }
     return this.onGloballyPositioned {
         val position = it.positionInRoot()
-        registry[key] = androidx.compose.ui.geometry.Rect(position, androidx.compose.ui.geometry.Size(it.size.width.toFloat(), it.size.height.toFloat()))
+        registry[key] = RainSurface(androidx.compose.ui.geometry.Rect(position, androidx.compose.ui.geometry.Size(it.size.width.toFloat(), it.size.height.toFloat())), cornerPx)
     }
 }
 
@@ -628,11 +630,12 @@ private fun HourlySection(snapshot: WeatherSnapshot, unit: TemperatureUnit, pale
             preferredItemWidth = 104.dp,
             itemSpacing = 4.dp,
             contentPadding = PaddingValues(horizontal = SIDE_PADDING),
-            modifier = Modifier.rainSurface("hourly").fillMaxWidth().height(176.dp),
+            modifier = Modifier.fillMaxWidth().height(176.dp),
         ) { index ->
             val hour = hours[index]
             Column(
                 Modifier
+                    .rainSurface("hourly:$index")
                     .fillMaxSize()
                     .maskClip(MaterialTheme.shapes.extraLarge)
                     .background(palette.card)
