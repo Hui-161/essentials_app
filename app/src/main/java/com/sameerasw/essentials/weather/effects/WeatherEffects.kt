@@ -19,6 +19,7 @@ import androidx.compose.ui.graphics.BlendMode
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.CompositingStrategy
+import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
@@ -74,6 +75,8 @@ fun WeatherEffects(
     val time = remember { mutableFloatStateOf(0f) }
     var canvasSize by remember { mutableStateOf(IntSize.Zero) }
     val currentHaptics by rememberUpdatedState(haptics)
+    val currentSurfaces by rememberUpdatedState(surfaces)
+    val piles = remember(spec) { HashMap<String, FloatArray>() }
     val layers = remember(spec) {
         spec.layers.mapIndexed { index, layer ->
             val field = ParticleField.create(particleCount(layer), seed = index * 7919 + 17)
@@ -90,6 +93,10 @@ fun WeatherEffects(
             val h = canvasSize.height.toFloat()
             currentHaptics?.let { sink ->
                 if (h > 0f && now > previous) emitHaptics(sink, layers, previous, now, h, density)
+            }
+            val snow = layers.firstOrNull { it.layer is WeatherEffectLayer.Snow }
+            if (snow != null && now > previous && canvasSize.width > 0) {
+                settleSnow(piles, currentSurfaces(), snow.field, previous, now, canvasSize.width.toFloat(), h, density.density)
             }
             previous = now
         }
@@ -119,7 +126,7 @@ fun WeatherEffects(
         layers.forEach { state ->
             when (val layer = state.layer) {
                 is WeatherEffectLayer.Rain -> drawRain(state, layer, t, strength, surfaces())
-                is WeatherEffectLayer.Snow -> drawSnow(state.field, t, layer.intensity, strength)
+                is WeatherEffectLayer.Snow -> drawSnow(state.field, t, layer.intensity, strength, surfaces(), piles)
                 is WeatherEffectLayer.Hail -> drawHail(state, layer.intensity, t, strength)
                 is WeatherEffectLayer.Clouds -> drawClouds(state.field, t, layer.intensity, strength, fog = false)
                 is WeatherEffectLayer.Fog -> drawClouds(state.field, t, layer.intensity, strength, fog = true)
@@ -218,7 +225,7 @@ private fun emitHaptics(
     }
 }
 
-class RainSurface(val rect: Rect, val cornerRadius: Float) {
+class RainSurface(val key: String, val rect: Rect, val cornerRadius: Float, val anchorLeft: Float = rect.left, val anchorWidth: Float = rect.width) {
     fun topAt(x: Float): Float {
         if (x < rect.left || x > rect.right) return Float.MAX_VALUE
         val r = min(cornerRadius, min(rect.width, rect.height) / 2f)
@@ -370,17 +377,121 @@ private fun DrawScope.drawSplash(sinceImpact: Float, x: Float, y: Float, alpha: 
     }
 }
 
-private fun DrawScope.drawSnow(field: ParticleField, t: Float, intensity: Float, strength: Float) {
-    val w = size.width
-    val h = size.height
-    val sway = 10.dp.toPx()
+private const val PILE_BUCKET_DP = 2f
+private const val PILE_MAX_DP = 9f
+private const val PILE_DEPOSIT_DP = 0.5f
+private const val PILE_REPOSE = 0.7f
+
+private class Flake(val x: Float, val y: Float, val radius: Float, val cycle: Int)
+
+private fun flakeAt(field: ParticleField, i: Int, t: Float, w: Float, h: Float, density: Float): Flake {
+    val radius = (1.4f + 1.8f * field.size[i]) * density
+    val span = h + radius * 2
+    val rate = 0.08f + 0.1f * field.speed[i]
+    val raw = field.phase[i] + t * rate
+    val y = (raw % 1f) * span - radius
+    val x = wrap(field.x[i] * w + sin(t * 0.8f + field.phase[i] * TWO_PI) * 10f * density, w)
+    return Flake(x, y, radius, floor(raw).toInt())
+}
+
+private fun settleSnow(
+    piles: HashMap<String, FloatArray>,
+    surfaces: List<RainSurface>,
+    field: ParticleField,
+    from: Float,
+    to: Float,
+    w: Float,
+    h: Float,
+    density: Float,
+) {
+    if (surfaces.isEmpty()) return
+    val bucket = PILE_BUCKET_DP * density
+    val maxDiff = PILE_REPOSE * bucket
+    val max = PILE_MAX_DP * density
     for (i in 0 until field.count) {
-        val radius = 1.4.dp.toPx() + 1.8.dp.toPx() * field.size[i]
-        val span = h + radius * 2
-        val p = (field.phase[i] + t * (0.08f + 0.1f * field.speed[i])) % 1f
-        val y = p * span - radius
-        val x = wrap(field.x[i] * w + sin(t * 0.8f + field.phase[i] * TWO_PI) * sway, w)
-        drawCircle(Color.White.copy(alpha = (0.25f + 0.35f * intensity) * strength), radius, Offset(x, y))
+        val before = flakeAt(field, i, from, w, h, density)
+        val after = flakeAt(field, i, to, w, h, density)
+        if (before.cycle != after.cycle) continue
+        val ledge = ledgeFor(surfaces, after.x, surfaceDepth(i, after.cycle))
+        if (ledge == Float.MAX_VALUE) continue
+        if (before.y + before.radius >= ledge || after.y + after.radius < ledge) continue
+        val surface = surfaces.firstOrNull { abs(it.topAt(after.x) - ledge) < 0.75f } ?: continue
+        val n = (surface.anchorWidth / bucket).toInt() + 2
+        var pile = piles[surface.key]
+        if (pile == null || pile.size != n) {
+            pile = pile?.copyOf(n) ?: FloatArray(n)
+            piles[surface.key] = pile
+        }
+        val at = ((after.x - surface.anchorLeft) / bucket).toInt().coerceIn(0, n - 1)
+        pile[at] += PILE_DEPOSIT_DP * density * (0.5f + field.size[i]) * (1f - pile[at] / max).coerceAtLeast(0f)
+        repeat(5) {
+            for (j in 0 until n - 1) {
+                val d = pile[j] - pile[j + 1]
+                if (d > maxDiff) {
+                    val move = (d - maxDiff) / 2f
+                    pile[j] -= move
+                    pile[j + 1] += move
+                } else if (-d > maxDiff) {
+                    val move = (-d - maxDiff) / 2f
+                    pile[j] += move
+                    pile[j + 1] -= move
+                }
+            }
+        }
+    }
+}
+
+private fun DrawScope.drawPile(surface: RainSurface, pile: FloatArray, alpha: Float) {
+    val density = this.density
+    val bucket = PILE_BUCKET_DP.dp.toPx()
+    val rect = surface.rect
+    val first = ((rect.left - surface.anchorLeft) / bucket).toInt().coerceIn(0, pile.size - 1)
+    val last = ((rect.right - surface.anchorLeft) / bucket).toInt().coerceIn(0, pile.size - 1)
+    val eps = 0.12f * density
+    var b = first
+    while (b <= last) {
+        if (pile[b] <= eps) {
+            b++
+            continue
+        }
+        var end = b
+        while (end + 1 <= last && pile[end + 1] > eps) end++
+        val path = Path()
+        val xs = ArrayList<Float>()
+        for (k in (b - 1)..(end + 1)) {
+            val x = (surface.anchorLeft + (k + 0.5f) * bucket).coerceIn(rect.left, rect.right)
+            val height = if (k < b || k > end) 0f else pile[k]
+            xs.add(x)
+            val y = surface.topAt(x) - height
+            if (k == b - 1) path.moveTo(x, y) else path.lineTo(x, y)
+        }
+        for (k in xs.indices.reversed()) path.lineTo(xs[k], surface.topAt(xs[k]))
+        path.close()
+        drawPath(path, Color.White.copy(alpha = alpha))
+        b = end + 1
+    }
+}
+
+private fun DrawScope.drawSnow(
+    field: ParticleField,
+    t: Float,
+    intensity: Float,
+    strength: Float,
+    surfaces: List<RainSurface>,
+    piles: HashMap<String, FloatArray>,
+) {
+    val density = this.density
+    for (i in 0 until field.count) {
+        val flake = flakeAt(field, i, t, size.width, size.height, density)
+        if (surfaces.isNotEmpty()) {
+            val ledge = ledgeFor(surfaces, flake.x, surfaceDepth(i, flake.cycle))
+            if (ledge != Float.MAX_VALUE && flake.y + flake.radius > ledge) continue
+        }
+        drawCircle(Color.White.copy(alpha = (0.25f + 0.35f * intensity) * strength), flake.radius, Offset(flake.x, flake.y))
+    }
+    for (surface in surfaces) {
+        val pile = piles[surface.key] ?: continue
+        drawPile(surface, pile, 0.95f * strength.coerceAtMost(1f))
     }
 }
 

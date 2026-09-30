@@ -197,7 +197,7 @@ fun WeatherScreen() {
         if (needsLocation) requestLocation() else if (WeatherRepository.isStale(context)) WeatherRepository.refresh(context)
     }
 
-    val rainSurfaces = remember { androidx.compose.runtime.mutableStateMapOf<String, RainSurface>() }
+    val rainSurfaces = remember { androidx.compose.runtime.mutableStateMapOf<String, RainSurfaceSource>() }
     val headerBottom = remember { mutableFloatStateOf(0f) }
 
     MaterialTheme(
@@ -251,7 +251,7 @@ fun WeatherScreen() {
                         modifier = Modifier.matchParentSize(),
                         strength = 1.7f,
                         haptics = effectHaptics,
-                        surfaces = { rainSurfaces.values.filter { it.rect.top >= headerBottom.floatValue } },
+                        surfaces = { rainSurfaces.entries.mapNotNull { (key, source) -> source.resolve(key) }.filter { it.rect.top >= headerBottom.floatValue } },
                     )
                 }
                 val scrollState = rememberScrollState()
@@ -423,17 +423,31 @@ private fun SkyBody(snapshot: WeatherSnapshot, now: Long, collapse: () -> Float)
     }
 }
 
-private val LocalRainSurfaces = androidx.compose.runtime.staticCompositionLocalOf<androidx.compose.runtime.snapshots.SnapshotStateMap<String, RainSurface>?> { null }
+private val LocalRainSurfaces = androidx.compose.runtime.staticCompositionLocalOf<androidx.compose.runtime.snapshots.SnapshotStateMap<String, RainSurfaceSource>?> { null }
+
+private class RainSurfaceSource(val corner: Float, val mask: (() -> androidx.compose.ui.geometry.Rect)?) {
+    var coordinates: androidx.compose.ui.layout.LayoutCoordinates? = null
+
+    fun resolve(key: String): RainSurface? {
+        val c = coordinates?.takeIf { it.isAttached } ?: return null
+        val position = c.positionInRoot()
+        val local = androidx.compose.ui.geometry.Rect(androidx.compose.ui.geometry.Offset.Zero, androidx.compose.ui.geometry.Size(c.size.width.toFloat(), c.size.height.toFloat()))
+        val visible = (mask?.invoke()?.intersect(local) ?: local).translate(position)
+        if (visible.width <= 0f || visible.height <= 0f) return null
+        return RainSurface(key, visible, corner, position.x, local.width)
+    }
+}
 
 @Composable
-private fun Modifier.rainSurface(key: String, corner: androidx.compose.ui.unit.Dp = 28.dp): Modifier {
+private fun Modifier.rainSurface(key: String, corner: androidx.compose.ui.unit.Dp = 28.dp, mask: (() -> androidx.compose.ui.geometry.Rect)? = null): Modifier {
     val registry = LocalRainSurfaces.current ?: return this
     val cornerPx = with(LocalDensity.current) { corner.toPx() }
-    androidx.compose.runtime.DisposableEffect(key) { onDispose { registry.remove(key) } }
-    return this.onGloballyPositioned {
-        val position = it.positionInRoot()
-        registry[key] = RainSurface(androidx.compose.ui.geometry.Rect(position, androidx.compose.ui.geometry.Size(it.size.width.toFloat(), it.size.height.toFloat())), cornerPx)
+    val source = remember(key, cornerPx) { RainSurfaceSource(cornerPx, mask) }
+    androidx.compose.runtime.DisposableEffect(key, source) {
+        registry[key] = source
+        onDispose { registry.remove(key) }
     }
+    return this.onGloballyPositioned { source.coordinates = it }
 }
 
 private val SIDE_PADDING = 20.dp
@@ -635,7 +649,7 @@ private fun HourlySection(snapshot: WeatherSnapshot, unit: TemperatureUnit, pale
             val hour = hours[index]
             Column(
                 Modifier
-                    .rainSurface("hourly:$index")
+                    .rainSurface("hourly:$index", mask = { carouselItemDrawInfo.maskRect })
                     .fillMaxSize()
                     .maskClip(MaterialTheme.shapes.extraLarge)
                     .background(palette.card)
