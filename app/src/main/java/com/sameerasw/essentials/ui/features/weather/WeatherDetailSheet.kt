@@ -363,20 +363,9 @@ private fun Modifier.rainSurface(key: String): Modifier {
 }
 
 private val SIDE_PADDING = 20.dp
-private val COLLAPSE_RANGE = 220.dp
+private val COLLAPSE_RANGE = 520.dp
 private const val COMBINE_AT = 0.9f
-
-@OptIn(ExperimentalTextApi::class)
-private val TemperatureFont = FontFamily(
-    Font(
-        R.font.google_sans_flex,
-        variationSettings = FontVariation.Settings(
-            FontVariation.width(140f),
-            FontVariation.weight(FontWeight.Normal.weight),
-            FontVariation.Setting("ROND", 100f),
-        ),
-    ),
-)
+private const val HEADER_EXTRAS_DP = 170f
 
 @Composable
 private fun LocationChip(snapshot: WeatherSnapshot, palette: WeatherPalette, modifier: Modifier) {
@@ -405,34 +394,58 @@ private fun Modifier.foldAway(fraction: Float): Modifier =
         }
         .graphicsLayer { alpha = (1f - fraction * 1.4f).coerceIn(0f, 1f) }
 
+private val temperatureFonts = java.util.concurrent.ConcurrentHashMap<Int, FontFamily>()
+
+@OptIn(ExperimentalTextApi::class)
+private fun temperatureFont(widthAxis: Int): FontFamily = temperatureFonts.getOrPut(widthAxis) {
+    FontFamily(
+        Font(
+            R.font.google_sans_flex,
+            variationSettings = FontVariation.Settings(
+                FontVariation.width(widthAxis.toFloat()),
+                FontVariation.weight(FontWeight.Normal.weight),
+                FontVariation.Setting("ROND", 100f),
+            ),
+        ),
+    )
+}
+
 @Composable
 private fun Header(snapshot: WeatherSnapshot, unit: TemperatureUnit, palette: WeatherPalette, progress: Float, modifier: Modifier) {
-    val size = lerp(150f, 44f, progress).sp
     val number = WeatherFormat.temperature(snapshot.tempC, unit).removeSuffix("°")
+    
+    val screenHeightDp = androidx.compose.ui.platform.LocalConfiguration.current.screenHeightDp
+    val fontScale = LocalDensity.current.fontScale
+    
+    val heightCap = ((screenHeightDp * 0.6f - HEADER_EXTRAS_DP) / 0.86f / fontScale).coerceAtLeast(64f)
+    val expanded = minOf(if (number.length >= 3) 290f else 390f, heightCap)
+    val size = lerp(expanded, 44f, progress).sp
+    
+    val font = temperatureFont(lerp(52f, 125f, progress).roundToInt())
     // The stacked/one-row switch is time-based and flips near the end of the collapse, with a little hysteresis.
     var combined by remember { mutableStateOf(false) }
     if (progress >= COMBINE_AT) combined = true else if (progress < COMBINE_AT - 0.08f) combined = false
     val morph by animateFloatAsState(if (combined) 1f else 0f, tween(320), label = "weatherHeaderMorph")
     Column(modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
-        Spacer(Modifier.height(lerp(32f, 0f, progress).dp))
+        Spacer(Modifier.height(lerp(20f, 0f, progress).dp))
         TemperatureAndCondition(
             progress = morph,
-            gap = lerp(12f, 16f, morph).dp,
+            gap = lerp(4f, 16f, morph).dp,
             digits = {
                 Row(verticalAlignment = Alignment.Top) {
                     // A hidden degree sign on the left mirrors the real one so the digits stay centered.
-                    DegreeSign(size, Color.Transparent, progress)
+                    DegreeSign(size, font, Color.Transparent)
                     Text(
                         number,
                         color = palette.onBase,
-                        fontFamily = TemperatureFont,
+                        fontFamily = font,
                         fontSize = size,
-                        lineHeight = size,
-                        letterSpacing = lerp(-4f, -1f, progress).sp,
+                        lineHeight = size * 0.86f,
+                        letterSpacing = lerp(-14f, -1f, progress).sp,
                         maxLines = 1,
                         softWrap = false,
                     )
-                    DegreeSign(size, palette.onBase, progress)
+                    DegreeSign(size, font, palette.onBase)
                 }
             },
             condition = {
@@ -493,12 +506,12 @@ private fun TemperatureAndCondition(
 }
 
 @Composable
-private fun DegreeSign(digitSize: androidx.compose.ui.unit.TextUnit, color: Color, progress: Float) {
-    val size = digitSize * 0.55f
+private fun DegreeSign(digitSize: androidx.compose.ui.unit.TextUnit, font: FontFamily, color: Color) {
+    val size = digitSize * 0.42f
     Text(
         "°",
         color = color,
-        fontFamily = TemperatureFont,
+        fontFamily = font,
         fontSize = size,
         lineHeight = size,
         maxLines = 1,
