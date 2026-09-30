@@ -1,6 +1,8 @@
 package com.sameerasw.essentials.ui.features.weather
 
 import android.content.Context
+import androidx.compose.ui.layout.positionInRoot
+import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.core.animateFloatAsState
@@ -140,6 +142,9 @@ fun WeatherScreen() {
         if (WeatherRepository.isStale(context)) WeatherRepository.refresh(context)
     }
 
+    val rainSurfaces = remember { androidx.compose.runtime.mutableStateMapOf<String, androidx.compose.ui.geometry.Rect>() }
+    val headerBottom = remember { mutableFloatStateOf(0f) }
+
     MaterialTheme(
         colorScheme = darkColorScheme(
             primary = palette.accent,
@@ -153,6 +158,7 @@ fun WeatherScreen() {
         typography = Typography,
         shapes = Shapes,
     ) {
+        androidx.compose.runtime.CompositionLocalProvider(LocalRainSurfaces provides rainSurfaces) {
         Box(Modifier.fillMaxSize()) {
                 Box(
                     Modifier
@@ -160,7 +166,12 @@ fun WeatherScreen() {
                         .background(Brush.verticalGradient(0f to palette.glow, 0.6f to palette.base, 1f to palette.base)),
                 )
                 if (!effectSpec.isEmpty) {
-                    WeatherEffects(spec = effectSpec, modifier = Modifier.matchParentSize(), haptics = effectHaptics)
+                    WeatherEffects(
+                        spec = effectSpec,
+                        modifier = Modifier.matchParentSize(),
+                        haptics = effectHaptics,
+                        surfaces = { rainSurfaces.values.filter { it.top >= headerBottom.floatValue } },
+                    )
                 }
                 val density = LocalDensity.current
                 val collapse = remember { mutableFloatStateOf(0f) }
@@ -193,7 +204,7 @@ fun WeatherScreen() {
                         }
                     }
                 } else {
-                    var topPx by remember { mutableFloatStateOf(0f) }
+                    var topPx by headerBottom
                     val topFadePx = if (topPx > 0f) topPx + with(density) { 40.dp.toPx() } else 0f
                     val bottomFadePx = WindowInsets.navigationBars.getBottom(density) + with(density) { 20.dp.toPx() }
                     Box(Modifier.fillMaxSize().nestedScroll(connection)) {
@@ -274,6 +285,21 @@ fun WeatherScreen() {
                     }
                 }
         }
+        }
+    }
+}
+
+// Container bounds the rain can land on, keyed so each one can register and unregister itself.
+private val LocalRainSurfaces = androidx.compose.runtime.staticCompositionLocalOf<androidx.compose.runtime.snapshots.SnapshotStateMap<String, androidx.compose.ui.geometry.Rect>?> { null }
+
+@Composable
+private fun Modifier.rainSurface(key: String): Modifier {
+    val registry = LocalRainSurfaces.current ?: return this
+    androidx.compose.runtime.DisposableEffect(key) { onDispose { registry.remove(key) } }
+    // boundsInRoot() is clipped to the viewport, which would pin scrolled-away cards to the top edge.
+    return this.onGloballyPositioned {
+        val position = it.positionInRoot()
+        registry[key] = androidx.compose.ui.geometry.Rect(position, androidx.compose.ui.geometry.Size(it.size.width.toFloat(), it.size.height.toFloat()))
     }
 }
 
@@ -427,6 +453,7 @@ private fun AlertCard(alert: WeatherAlert, palette: WeatherPalette, modifier: Mo
     val alertColor = MaterialTheme.colorScheme.error
     Column(
         modifier
+            .rainSurface("alert:${alert.id}")
             .fillMaxWidth()
             .clip(MaterialTheme.shapes.extraLarge)
             .background(alertColor.copy(alpha = 0.22f))
@@ -458,7 +485,7 @@ private fun HourlySection(snapshot: WeatherSnapshot, unit: TemperatureUnit, pale
             preferredItemWidth = 104.dp,
             itemSpacing = 4.dp,
             contentPadding = PaddingValues(horizontal = SIDE_PADDING),
-            modifier = Modifier.fillMaxWidth().height(176.dp),
+            modifier = Modifier.rainSurface("hourly").fillMaxWidth().height(176.dp),
         ) { index ->
             val hour = hours[index]
             Column(
@@ -496,7 +523,7 @@ private fun DailySection(days: List<DailyForecast>, unit: TemperatureUnit, palet
     val high = days.maxOf { it.highC }
     val span = (high - low).coerceAtLeast(1.0)
     Column(modifier) {
-        RoundedCardContainer(spacing = 2.dp, cornerRadius = 28.dp) {
+        RoundedCardContainer(modifier = Modifier.rainSurface("daily"), spacing = 2.dp, cornerRadius = 28.dp) {
             days.forEachIndexed { index, day ->
                 Surface(color = palette.card, shape = MaterialTheme.shapes.extraSmall, modifier = Modifier.fillMaxWidth()) {
                     Row(
@@ -567,7 +594,7 @@ private fun DetailsSection(snapshot: WeatherSnapshot, unit: TemperatureUnit, pal
         extras?.cloudCover?.let { add(Detail(R.drawable.rounded_cloud_24, R.string.weather_detail_cloud_cover, "$it%")) }
     }
     Column(modifier) {
-        Surface(color = palette.card, shape = MaterialTheme.shapes.extraLarge, modifier = Modifier.fillMaxWidth()) {
+        Surface(color = palette.card, shape = MaterialTheme.shapes.extraLarge, modifier = Modifier.rainSurface("details").fillMaxWidth()) {
             Column(Modifier.padding(vertical = 12.dp, horizontal = 8.dp)) {
                 details.chunked(2).forEach { row ->
                     Row(Modifier.fillMaxWidth()) {
@@ -601,7 +628,7 @@ private fun SunSection(snapshot: WeatherSnapshot, palette: WeatherPalette, modif
     val set = snapshot.extras?.sunsetMillis ?: return
     val context = LocalContext.current
     Column(modifier) {
-        RoundedCardContainer(spacing = 2.dp, cornerRadius = 28.dp) {
+        RoundedCardContainer(modifier = Modifier.rainSurface("sun"), spacing = 2.dp, cornerRadius = 28.dp) {
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(2.dp)) {
                 SunTile(R.string.weather_detail_sunrise, formatTime(context, rise), palette, Modifier.weight(1f))
                 SunTile(R.string.weather_detail_sunset, formatTime(context, set), palette, Modifier.weight(1f))
