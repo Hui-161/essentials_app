@@ -32,6 +32,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -116,7 +117,7 @@ import kotlin.math.roundToInt
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class)
 @Composable
-fun WeatherDetailSheet(onDismissRequest: () -> Unit) {
+fun WeatherScreen() {
     val context = LocalContext.current
     val view = LocalView.current
     val scope = rememberCoroutineScope()
@@ -152,17 +153,7 @@ fun WeatherDetailSheet(onDismissRequest: () -> Unit) {
         typography = Typography,
         shapes = Shapes,
     ) {
-        val sheetShape = BottomSheetDefaults.ExpandedShape
-        ModalBottomSheet(
-            onDismissRequest = onDismissRequest,
-            sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
-            containerColor = Color.Transparent,
-            shape = sheetShape,
-            dragHandle = null,
-            contentWindowInsets = { WindowInsets(0, 0, 0, 0) },
-            modifier = Modifier.statusBarsPadding(),
-        ) {
-            Box(Modifier.fillMaxWidth().fillMaxHeight().clip(sheetShape)) {
+        Box(Modifier.fillMaxSize()) {
                 Box(
                     Modifier
                         .matchParentSize()
@@ -203,6 +194,8 @@ fun WeatherDetailSheet(onDismissRequest: () -> Unit) {
                     }
                 } else {
                     var topPx by remember { mutableFloatStateOf(0f) }
+                    val topFadePx = if (topPx > 0f) topPx + with(density) { 40.dp.toPx() } else 0f
+                    val bottomFadePx = WindowInsets.navigationBars.getBottom(density) + with(density) { 20.dp.toPx() }
                     Box(Modifier.fillMaxSize().nestedScroll(connection)) {
                         Box(
                             Modifier
@@ -210,18 +203,29 @@ fun WeatherDetailSheet(onDismissRequest: () -> Unit) {
                                 .graphicsLayer { compositingStrategy = CompositingStrategy.Offscreen }
                                 .drawWithContent {
                                     drawContent()
-                                    if (topPx > 0f) {
+                                    if (topFadePx > 0f) {
                                         drawRect(
                                             brush = Brush.verticalGradient(
                                                 colors = listOf(Color.Transparent, Color.Black),
                                                 startY = 0f,
-                                                endY = topPx,
+                                                endY = topFadePx,
                                             ),
                                             blendMode = BlendMode.DstIn,
                                         )
                                     }
+                                    drawRect(
+                                        brush = Brush.verticalGradient(
+                                            colors = listOf(Color.Black, Color.Transparent),
+                                            startY = size.height - bottomFadePx,
+                                            endY = size.height,
+                                        ),
+                                        topLeft = androidx.compose.ui.geometry.Offset(0f, size.height - bottomFadePx),
+                                        size = androidx.compose.ui.geometry.Size(size.width, bottomFadePx),
+                                        blendMode = BlendMode.DstIn,
+                                    )
                                 }
-                                .progressiveBlur(blurRadius = 40f, height = topPx, direction = BlurDirection.TOP, showGradientOverlay = false),
+                                .progressiveBlur(blurRadius = 40f, height = topFadePx, direction = BlurDirection.TOP, showGradientOverlay = false)
+                                .progressiveBlur(blurRadius = 14f, height = bottomFadePx, direction = BlurDirection.BOTTOM, showGradientOverlay = false),
                         ) {
                             Column(
                                 Modifier
@@ -256,7 +260,8 @@ fun WeatherDetailSheet(onDismissRequest: () -> Unit) {
                             Modifier
                                 .align(Alignment.TopCenter)
                                 .fillMaxWidth()
-                                .onSizeChanged { topPx = it.height.toFloat() },
+                                .onSizeChanged { topPx = it.height.toFloat() }
+                                .statusBarsPadding(),
                             horizontalAlignment = Alignment.CenterHorizontally,
                         ) {
                             val progress = collapse.floatValue
@@ -268,7 +273,6 @@ fun WeatherDetailSheet(onDismissRequest: () -> Unit) {
                         }
                     }
                 }
-            }
         }
     }
 }
