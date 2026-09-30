@@ -278,7 +278,13 @@ fun IslandSettingsUI(
                         val weatherSettings = SettingsRepository(context)
                         val weatherProvider = com.sameerasw.essentials.weather.provider.WeatherProviders
                             .resolve(weatherSettings.getWeatherProvider(), weatherSettings.getWeatherApiKey("weatherapi"))
-                        if (weatherProvider.requiresApiKey && weatherSettings.getWeatherApiKey(weatherProvider.id) == null) showWeatherOptionsSheet = true
+                        if (weatherProvider.requiresApiKey && weatherSettings.getWeatherApiKey(weatherProvider.id) == null) {
+                            context.startActivity(Intent(context, com.sameerasw.essentials.FeatureSettingsActivity::class.java).putExtra("feature", "Weather"))
+                        } else if (weatherSettings.getWeatherLocationMode() != "manual" &&
+                            !com.sameerasw.essentials.weather.location.DeviceLocationSource.hasPermission(context)
+                        ) {
+                            requestingPermissionsFor = Pair(R.string.lock_screen_clock_weather, listOf("LOCATION"))
+                        }
                     }
                 },
                 onSettingsClick = { showWeatherOptionsSheet = true },

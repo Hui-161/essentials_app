@@ -72,6 +72,7 @@ fun WeatherExpanded(
     scope: IslandExpandedScope,
     effects: Boolean,
     haptics: Boolean,
+    simulated: WeatherEffectSpec? = null,
     onRefresh: () -> Unit,
 ) {
     val state by WeatherRepository.state.collectAsState()
@@ -80,8 +81,8 @@ fun WeatherExpanded(
     val snapshot = state.snapshot
     val accent = MaterialTheme.colorScheme.primary
     val context = LocalContext.current
-    val effectSpec = remember(effects, snapshot) {
-        snapshot?.takeIf { effects }?.let(WeatherEffectSpec::from) ?: WeatherEffectSpec.None
+    val effectSpec = remember(effects, snapshot, simulated) {
+        snapshot?.takeIf { effects }?.let { simulated ?: WeatherEffectSpec.from(it) } ?: WeatherEffectSpec.None
     }
     val effectHaptics = remember(context, haptics) { DeviceWeatherHaptics(context).takeIf { haptics } }
 

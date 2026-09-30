@@ -526,6 +526,7 @@ class SettingsRepository(
 
         const val KEY_WEATHER_PROVIDER = "weather_provider"
         const val KEY_WEATHER_API_KEY = "weather_api_key"
+        const val KEY_WEATHER_SHOW_IN_LAUNCHER = "weather_show_in_launcher"
         const val KEY_WEATHER_OPENMETEO_MODEL = "weather_openmeteo_model"
         fun weatherApiKeyName(providerId: String) = "${KEY_WEATHER_API_KEY}_$providerId"
         const val KEY_WEATHER_LOCATION_MODE = "weather_location_mode"

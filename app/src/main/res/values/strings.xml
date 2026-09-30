@@ -2934,6 +2934,12 @@
     <string name="weather_alert_until">Until %1$s</string>
     <string name="weather_updated_at">Updated %1$s</string>
     <string name="weather_not_loaded">Not loaded yet</string>
+    <string name="weather_grant_location">Allow location</string>
+    <string name="weather_show_in_launcher">Show in launcher</string>
+    <string name="about_desc_weather">Pick a forecast source, set your location, units and refresh interval, and choose whether the full weather screen appears in your app list. The island and Brief use these settings.</string>
+    <string name="feat_weather_title">Weather</string>
+    <string name="feat_weather_desc">Configure providers and settings</string>
+    <string name="island_weather_open_settings">Weather settings</string>
     <string name="weather_activity_label">Weather</string>
     <string name="weather_detail_hourly">Hourly</string>
     <string name="weather_detail_daily">Next days</string>

@@ -102,8 +102,10 @@ import com.sameerasw.essentials.utils.HapticUtil
 import com.sameerasw.essentials.weather.WeatherFormat
 import com.sameerasw.essentials.weather.WeatherRepository
 import com.sameerasw.essentials.weather.effects.DeviceWeatherHaptics
+import com.sameerasw.essentials.weather.location.DeviceLocationSource
 import com.sameerasw.essentials.weather.effects.WeatherEffectSpec
 import com.sameerasw.essentials.weather.effects.WeatherEffects
+import com.sameerasw.essentials.weather.effects.WeatherSimulation
 import com.sameerasw.essentials.weather.model.DailyForecast
 import com.sameerasw.essentials.weather.model.TemperatureUnit
 import com.sameerasw.essentials.weather.model.WeatherAlert
@@ -125,7 +127,19 @@ fun WeatherScreen() {
     val scope = rememberCoroutineScope()
     val settings = remember { SettingsRepository(context) }
     val state by WeatherRepository.state.collectAsState()
-    val snapshot = state.snapshot
+    var simulationId by remember { mutableStateOf(settings.getString(SettingsRepository.KEY_DEBUG_SIMULATED_WEATHER, WeatherSimulation.OFF)) }
+    val lifecycleOwner = androidx.lifecycle.compose.LocalLifecycleOwner.current
+    androidx.compose.runtime.DisposableEffect(lifecycleOwner) {
+        val observer = androidx.lifecycle.LifecycleEventObserver { _, event ->
+            if (event == androidx.lifecycle.Lifecycle.Event.ON_RESUME) {
+                simulationId = settings.getString(SettingsRepository.KEY_DEBUG_SIMULATED_WEATHER, WeatherSimulation.OFF)
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+    }
+    val simulation = WeatherSimulation.find(simulationId)
+    val snapshot = state.snapshot?.let { real -> simulation?.let { WeatherSimulation.apply(real, it) } ?: real }
     val unit = remember { WeatherFormat.unitFor(settings.getWeatherUnits()) }
     var now by remember { mutableLongStateOf(System.currentTimeMillis()) }
     LaunchedEffect(Unit) {
@@ -140,14 +154,19 @@ fun WeatherScreen() {
         },
     )
     val effects = remember { settings.isIslandWeatherEffectsEnabled() && !DeviceUtils.isPowerSaveMode(context) }
-    val effectSpec = remember(effects, snapshot?.condition, snapshot?.isDay, snapshot?.windKph) {
-        snapshot?.takeIf { effects }?.let(WeatherEffectSpec::from) ?: WeatherEffectSpec.None
+    val effectSpec = remember(effects, snapshot?.condition, snapshot?.isDay, snapshot?.windKph, simulation?.id) {
+        snapshot?.takeIf { effects }?.let { simulation?.spec ?: WeatherEffectSpec.from(it) } ?: WeatherEffectSpec.None
     }
     val effectHaptics = remember(context) { DeviceWeatherHaptics(context).takeIf { settings.isIslandWeatherHapticsEnabled() } }
 
+    val requestLocation = rememberLocationPermissionRequest { granted ->
+        if (granted) scope.launch { WeatherRepository.refresh(context, force = true) }
+    }
+
     LaunchedEffect(Unit) {
         WeatherRepository.ensureLoaded(context)
-        if (WeatherRepository.isStale(context)) WeatherRepository.refresh(context)
+        val needsLocation = settings.getWeatherLocationMode() != "manual" && !DeviceLocationSource.hasPermission(context)
+        if (needsLocation) requestLocation() else if (WeatherRepository.isStale(context)) WeatherRepository.refresh(context)
     }
 
     val rainSurfaces = remember { androidx.compose.runtime.mutableStateMapOf<String, androidx.compose.ui.geometry.Rect>() }
@@ -218,6 +237,13 @@ fun WeatherScreen() {
                         Spacer(Modifier.height(120.dp))
                         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.Center) {
                             if (state.loading) LoadingIndicator() else Text(errorLabel(context, state.error), color = palette.onBaseMuted)
+                        }
+                        if (state.error == WeatherError.LocationPermission) {
+                            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.Center) {
+                                androidx.compose.material3.FilledTonalButton(onClick = { requestLocation() }) {
+                                    Text(stringResource(R.string.weather_grant_location))
+                                }
+                            }
                         }
                     }
                 } else {

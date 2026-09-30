@@ -1116,6 +1116,13 @@ class FeatureSettingsActivity : AppCompatActivity() {
                                         )
                                     }
 
+                                    "Weather" -> {
+                                        com.sameerasw.essentials.ui.features.weather.WeatherSettingsUI(
+                                            viewModel = viewModel,
+                                            modifier = Modifier.padding(top = 16.dp),
+                                        )
+                                    }
+
                                     "Batteries" -> {
                                         BatteriesSettingsUI(
                                             viewModel = viewModel,

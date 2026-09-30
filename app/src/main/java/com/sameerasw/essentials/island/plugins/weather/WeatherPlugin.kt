@@ -22,6 +22,7 @@ import com.sameerasw.essentials.island.ui.components.IslandIcon
 import com.sameerasw.essentials.island.ui.components.RollingText
 import com.sameerasw.essentials.weather.WeatherFormat
 import com.sameerasw.essentials.weather.WeatherRepository
+import com.sameerasw.essentials.weather.effects.WeatherSimulation
 import com.sameerasw.essentials.weather.provider.WeatherProviders
 import com.sameerasw.essentials.weather.model.WeatherState
 import com.sameerasw.essentials.weather.work.WeatherScheduler
@@ -40,6 +41,7 @@ class WeatherPlugin : BaseIslandPlugin() {
         SettingsRepository.KEY_ISLAND_WEATHER_PEEK_ALERTS,
         SettingsRepository.KEY_WEATHER_PROVIDER,
         SettingsRepository.KEY_WEATHER_API_KEY,
+        SettingsRepository.KEY_DEBUG_SIMULATED_WEATHER,
         SettingsRepository.KEY_WEATHER_OPENMETEO_MODEL,
         *WeatherProviders.all.map { SettingsRepository.weatherApiKeyName(it.id) }.toTypedArray(),
         SettingsRepository.KEY_WEATHER_LOCATION_MODE,
@@ -116,6 +118,7 @@ class WeatherPlugin : BaseIslandPlugin() {
         val mode = settings.getIslandWeatherMode()
         val effects = settings.isIslandWeatherEffectsEnabled() && !DeviceUtils.isPowerSaveMode(context)
         val haptics = settings.isIslandWeatherHapticsEnabled()
+        val simulated = WeatherSimulation.find(settings.getString(SettingsRepository.KEY_DEBUG_SIMULATED_WEATHER, WeatherSimulation.OFF))?.spec
         val alert = snapshot.activeAlerts().filter { it.severity.isSevere }.maxByOrNull { it.severity.ordinal }
         val temperature = WeatherFormat.temperature(snapshot.tempC, unit)
         val icon = if (alert != null) R.drawable.rounded_warning_24 else WeatherFormat.icon(snapshot.condition, snapshot.isDay)
@@ -156,6 +159,7 @@ class WeatherPlugin : BaseIslandPlugin() {
                         scope = scope,
                         effects = effects,
                         haptics = haptics,
+                        simulated = simulated,
                         onRefresh = { ctx?.scope?.launch { WeatherRepository.refresh(context, force = true) } },
                     )
                 },

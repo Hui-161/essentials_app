@@ -36,6 +36,7 @@ class EssentialsApp : Application() {
         super.onCreate()
         context = applicationContext
         com.sameerasw.essentials.utils.HapticUtil.initialize(this)
+        com.sameerasw.essentials.utils.WeatherLauncher.apply(this)
 
         try {
             resources?.configuration
