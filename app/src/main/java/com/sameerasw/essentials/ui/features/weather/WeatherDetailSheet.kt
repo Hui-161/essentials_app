@@ -20,6 +20,7 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.layout
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.ui.geometry.Offset
+import com.sameerasw.essentials.ui.modifiers.heatHaze
 import com.sameerasw.essentials.ui.modifiers.rainOnGlass
 import com.sameerasw.essentials.weather.effects.RainSurface
 import androidx.compose.ui.input.nestedscroll.nestedScroll
@@ -145,8 +146,9 @@ internal fun rememberWeatherPresentation(real: WeatherSnapshot?): WeatherPresent
     }
     val simulation = remember(settingsVersion) { settings.getSimulatedWeather() }
     val timeOverride = remember(settingsVersion) { settings.getSimulatedTimeOfDay() }
+    val tempOverride = remember(settingsVersion) { settings.getSimulatedTempC() }
     val simulated = real?.let { r -> simulation?.let { WeatherSimulation.apply(r, it) } ?: r }
-    val snapshot = simulated?.let { WeatherSimulation.withTimeOfDay(it, timeOverride) }
+    val snapshot = simulated?.let { WeatherSimulation.withTimeOfDay(it, timeOverride) }?.let { s -> tempOverride?.let { s.copy(tempC = it) } ?: s }
     val unit = remember(settingsVersion) { WeatherFormat.unitFor(settings.getWeatherUnits()) }
     var clock by remember { mutableLongStateOf(System.currentTimeMillis()) }
     LaunchedEffect(Unit) {
@@ -515,6 +517,7 @@ private fun Header(snapshot: WeatherSnapshot, unit: TemperatureUnit, palette: We
     val size = lerp(expanded, 44f, progress).sp
     
     val font = temperatureFont(lerp(52f, 125f, progress).roundToInt(), lerp(1f, 800f, progress).roundToInt())
+    val hazeStrength = ((snapshot.tempC - 30.0) / 12.0).toFloat().coerceIn(0f, 1f) * (1f - progress * 5f).coerceIn(0f, 1f)
     var combined by remember { mutableStateOf(false) }
     if (progress >= COMBINE_AT) combined = true else if (progress < COMBINE_AT - 0.08f) combined = false
     val morph by animateFloatAsState(if (combined) 1f else 0f, tween(320), label = "weatherHeaderMorph")
@@ -524,7 +527,7 @@ private fun Header(snapshot: WeatherSnapshot, unit: TemperatureUnit, palette: We
             progress = morph,
             gap = lerp(4f, 16f, morph).dp,
             digits = {
-                Row(verticalAlignment = Alignment.Top) {
+                Row(verticalAlignment = Alignment.Top, modifier = Modifier.heatHaze(hazeStrength)) {
                     DegreeSign(size, font, Color.Transparent)
                     Text(
                         number,

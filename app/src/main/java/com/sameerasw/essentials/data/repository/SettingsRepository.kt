@@ -506,6 +506,7 @@ class SettingsRepository(
         const val KEY_DEBUG_SIMULATED_WEATHER = "debug_simulated_weather"
         const val KEY_DEBUG_WEATHER_EXPERIMENTAL = "debug_weather_experimental"
         const val KEY_DEBUG_SIMULATED_TIME = "debug_simulated_time"
+        const val KEY_DEBUG_SIMULATED_TEMP = "debug_simulated_temp"
         const val KEY_ISLAND_PREVIEW_STAGE = "island_preview_stage"
         const val ISLAND_PREVIEW_STAGE_AUTO = "auto"
         const val ISLAND_PREVIEW_STAGE_PEEK = "peek"
@@ -3762,6 +3763,9 @@ class SettingsRepository(
 
     fun getSimulatedTimeOfDay(): String? =
         if (isWeatherExperimentalEnabled()) getString(KEY_DEBUG_SIMULATED_TIME, "auto")?.takeIf { it != "auto" } else null
+
+    fun getSimulatedTempC(): Double? =
+        if (isWeatherExperimentalEnabled()) getString(KEY_DEBUG_SIMULATED_TEMP, "auto")?.toDoubleOrNull() else null
 
     fun getWeatherOpenMeteoModel(): String? = getString(KEY_WEATHER_OPENMETEO_MODEL, null)?.takeIf { it.isNotBlank() }
     fun setWeatherOpenMeteoModel(model: String?) = putString(KEY_WEATHER_OPENMETEO_MODEL, model.orEmpty())

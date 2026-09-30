@@ -2938,6 +2938,7 @@
     <string name="weather_section_experimental">Experimental</string>
     <string name="weather_sim_time_title">Time of day</string>
     <string name="weather_sim_time_auto">Auto</string>
+    <string name="weather_sim_temp_title">Temperature</string>
     <string name="weather_sim_time_dawn">Dawn</string>
     <string name="weather_sim_time_day">Day</string>
     <string name="weather_sim_time_dusk">Dusk</string>

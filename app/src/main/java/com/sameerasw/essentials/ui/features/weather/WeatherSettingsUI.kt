@@ -101,6 +101,7 @@ fun WeatherSettingsUI(
     var experimental by remember { mutableStateOf(settings.isWeatherExperimentalEnabled()) }
     var simulatedWeather by remember { mutableStateOf(settings.getString(SettingsRepository.KEY_DEBUG_SIMULATED_WEATHER, WeatherSimulation.OFF) ?: WeatherSimulation.OFF) }
     var simulatedTime by remember { mutableStateOf(settings.getString(SettingsRepository.KEY_DEBUG_SIMULATED_TIME, "auto") ?: "auto") }
+    var simulatedTemp by remember { mutableStateOf(settings.getString(SettingsRepository.KEY_DEBUG_SIMULATED_TEMP, "auto") ?: "auto") }
     val lifecycleOwner = androidx.lifecycle.compose.LocalLifecycleOwner.current
     androidx.compose.runtime.DisposableEffect(lifecycleOwner) {
         val observer = androidx.lifecycle.LifecycleEventObserver { _, event ->
@@ -526,6 +527,17 @@ fun WeatherSettingsUI(
                     },
                     modifier = Modifier.fillMaxWidth(),
                     title = R.string.weather_sim_time_title,
+                )
+                SegmentedPicker(
+                    items = listOf("auto", "-15", "5", "22", "38", "50"),
+                    selectedItem = simulatedTemp,
+                    onItemSelected = {
+                        simulatedTemp = it
+                        settings.putString(SettingsRepository.KEY_DEBUG_SIMULATED_TEMP, it)
+                    },
+                    labelProvider = { if (it == "auto") context.getString(R.string.weather_sim_time_auto) else "$it°" },
+                    modifier = Modifier.fillMaxWidth(),
+                    title = R.string.weather_sim_temp_title,
                 )
             }
         }
