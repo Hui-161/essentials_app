@@ -1,6 +1,16 @@
 package com.sameerasw.essentials.ui.features.weather
 
 import android.content.Context
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.ui.layout.Layout
+import com.sameerasw.essentials.ui.modifiers.progressiveBlur
+import com.sameerasw.essentials.ui.modifiers.BlurDirection
+import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.draw.drawWithContent
+import androidx.compose.ui.graphics.BlendMode
+import androidx.compose.ui.graphics.CompositingStrategy
 import androidx.compose.ui.util.lerp
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.layout
@@ -184,43 +194,77 @@ fun WeatherDetailSheet(onDismissRequest: () -> Unit) {
                         }
                     }
                 }
-                Column(Modifier.fillMaxSize().nestedScroll(connection)) {
-                    if (snapshot == null) {
+                if (snapshot == null) {
+                    Column(Modifier.fillMaxSize()) {
                         Spacer(Modifier.height(120.dp))
                         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.Center) {
                             if (state.loading) LoadingIndicator() else Text(errorLabel(context, state.error), color = palette.onBaseMuted)
                         }
-                    } else {
-                        Spacer(Modifier.height(14.dp))
-                        LocationChip(snapshot, palette, Modifier.align(Alignment.CenterHorizontally).padding(horizontal = SIDE_PADDING))
-                        Header(snapshot, unit, palette, { collapse.floatValue }, Modifier.padding(horizontal = SIDE_PADDING))
+                    }
+                } else {
+                    var topPx by remember { mutableFloatStateOf(0f) }
+                    Box(Modifier.fillMaxSize().nestedScroll(connection)) {
+                        Box(
+                            Modifier
+                                .fillMaxSize()
+                                .graphicsLayer { compositingStrategy = CompositingStrategy.Offscreen }
+                                .drawWithContent {
+                                    drawContent()
+                                    if (topPx > 0f) {
+                                        drawRect(
+                                            brush = Brush.verticalGradient(
+                                                colors = listOf(Color.Transparent, Color.Black),
+                                                startY = 0f,
+                                                endY = topPx,
+                                            ),
+                                            blendMode = BlendMode.DstIn,
+                                        )
+                                    }
+                                }
+                                .progressiveBlur(blurRadius = 40f, height = topPx, direction = BlurDirection.TOP, showGradientOverlay = false),
+                        ) {
+                            Column(
+                                Modifier
+                                    .fillMaxSize()
+                                    .verticalScroll(scrollState)
+                                    .padding(top = with(density) { topPx.toDp() } + 28.dp)
+                                    .navigationBarsPadding()
+                                    .padding(bottom = 40.dp),
+                                verticalArrangement = Arrangement.spacedBy(20.dp),
+                            ) {
+                                snapshot.activeAlerts().sortedByDescending { it.severity.ordinal }
+                                    .forEach { AlertCard(it, palette, Modifier.padding(horizontal = SIDE_PADDING)) }
+                                HourlySection(snapshot, unit, palette)
+                                snapshot.daily.orEmpty().takeIf { it.isNotEmpty() }
+                                    ?.let { DailySection(it, unit, palette, Modifier.padding(horizontal = SIDE_PADDING)) }
+                                DetailsSection(snapshot, unit, palette, Modifier.padding(horizontal = SIDE_PADDING))
+                                SunSection(snapshot, palette, Modifier.padding(horizontal = SIDE_PADDING))
+                                Footer(
+                                    modifier = Modifier.padding(horizontal = SIDE_PADDING),
+                                    snapshot = snapshot,
+                                    loading = state.loading,
+                                    error = state.error,
+                                    palette = palette,
+                                    onRefresh = {
+                                        HapticUtil.performVirtualKeyHaptic(view)
+                                        scope.launch { WeatherRepository.refresh(context, force = true) }
+                                    },
+                                )
+                            }
+                        }
                         Column(
                             Modifier
-                                .weight(1f)
+                                .align(Alignment.TopCenter)
                                 .fillMaxWidth()
-                                .verticalScroll(scrollState)
-                                .navigationBarsPadding()
-                                .padding(top = 12.dp, bottom = 40.dp),
-                            verticalArrangement = Arrangement.spacedBy(20.dp),
+                                .onSizeChanged { topPx = it.height.toFloat() },
+                            horizontalAlignment = Alignment.CenterHorizontally,
                         ) {
-                            snapshot.activeAlerts().sortedByDescending { it.severity.ordinal }
-                                .forEach { AlertCard(it, palette, Modifier.padding(horizontal = SIDE_PADDING)) }
-                            HourlySection(snapshot, unit, palette)
-                            snapshot.daily.orEmpty().takeIf { it.isNotEmpty() }
-                                ?.let { DailySection(it, unit, palette, Modifier.padding(horizontal = SIDE_PADDING)) }
-                            DetailsSection(snapshot, unit, palette, Modifier.padding(horizontal = SIDE_PADDING))
-                            SunSection(snapshot, palette, Modifier.padding(horizontal = SIDE_PADDING))
-                            Footer(
-                                modifier = Modifier.padding(horizontal = SIDE_PADDING),
-                                snapshot = snapshot,
-                                loading = state.loading,
-                                error = state.error,
-                                palette = palette,
-                                onRefresh = {
-                                    HapticUtil.performVirtualKeyHaptic(view)
-                                    scope.launch { WeatherRepository.refresh(context, force = true) }
-                                },
-                            )
+                            val progress = collapse.floatValue
+                            Spacer(Modifier.height(14.dp))
+                            Box(Modifier.foldAway(((progress - 0.25f) / 0.5f).coerceIn(0f, 1f))) {
+                                LocationChip(snapshot, palette, Modifier.padding(horizontal = SIDE_PADDING))
+                            }
+                            Header(snapshot, unit, palette, progress, Modifier.padding(horizontal = SIDE_PADDING))
                         }
                     }
                 }
@@ -230,7 +274,8 @@ fun WeatherDetailSheet(onDismissRequest: () -> Unit) {
 }
 
 private val SIDE_PADDING = 20.dp
-private val COLLAPSE_RANGE = 160.dp
+private val COLLAPSE_RANGE = 220.dp
+private const val COMBINE_AT = 0.9f
 
 @OptIn(ExperimentalTextApi::class)
 private val TemperatureFont = FontFamily(
@@ -263,39 +308,58 @@ private fun LocationChip(snapshot: WeatherSnapshot, palette: WeatherPalette, mod
     )
 }
 
+private fun Modifier.foldAway(fraction: Float): Modifier =
+    this
+        .layout { measurable, constraints ->
+            val placeable = measurable.measure(constraints)
+            layout(placeable.width, (placeable.height * (1f - fraction)).roundToInt()) { placeable.placeRelative(0, 0) }
+        }
+        .graphicsLayer { alpha = (1f - fraction * 1.4f).coerceIn(0f, 1f) }
+
 @Composable
-private fun Header(snapshot: WeatherSnapshot, unit: TemperatureUnit, palette: WeatherPalette, collapse: () -> Float, modifier: Modifier) {
-    val progress = collapse()
-    val size = lerp(150f, 72f, progress).sp
+private fun Header(snapshot: WeatherSnapshot, unit: TemperatureUnit, palette: WeatherPalette, progress: Float, modifier: Modifier) {
+    val size = lerp(150f, 44f, progress).sp
+    val number = WeatherFormat.temperature(snapshot.tempC, unit).removeSuffix("°")
+    // The stacked/one-row switch is time-based and flips near the end of the collapse, with a little hysteresis.
+    var combined by remember { mutableStateOf(false) }
+    if (progress >= COMBINE_AT) combined = true else if (progress < COMBINE_AT - 0.08f) combined = false
+    val morph by animateFloatAsState(if (combined) 1f else 0f, tween(320), label = "weatherHeaderMorph")
     Column(modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
-        Text(
-            WeatherFormat.temperature(snapshot.tempC, unit),
-            color = palette.onBase,
-            fontFamily = TemperatureFont,
-            fontSize = size,
-            lineHeight = size,
-            letterSpacing = lerp(-4f, -2f, progress).sp,
-            maxLines = 1,
-        )
-        Column(
-            Modifier
-                .layout { measurable, constraints ->
-                    val placeable = measurable.measure(constraints)
-                    layout(placeable.width, (placeable.height * (1f - progress)).roundToInt()) { placeable.placeRelative(0, 0) }
+        Spacer(Modifier.height(lerp(32f, 0f, progress).dp))
+        TemperatureAndCondition(
+            progress = morph,
+            gap = lerp(12f, 16f, morph).dp,
+            digits = {
+                Row(verticalAlignment = Alignment.Top) {
+                    // A hidden degree sign on the left mirrors the real one so the digits stay centered.
+                    DegreeSign(size, Color.Transparent, progress)
+                    Text(
+                        number,
+                        color = palette.onBase,
+                        fontFamily = TemperatureFont,
+                        fontSize = size,
+                        lineHeight = size,
+                        letterSpacing = lerp(-4f, -1f, progress).sp,
+                        maxLines = 1,
+                        softWrap = false,
+                    )
+                    DegreeSign(size, palette.onBase, progress)
                 }
-                .graphicsLayer { alpha = (1f - progress * 1.6f).coerceIn(0f, 1f) },
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(6.dp),
-        ) {
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                Icon(
-                    painterResource(WeatherFormat.icon(snapshot.condition, snapshot.isDay)),
-                    contentDescription = null,
-                    tint = palette.accent,
-                    modifier = Modifier.size(32.dp),
-                )
-                Text(snapshot.conditionText, color = palette.onBase, style = MaterialTheme.typography.headlineSmall, maxLines = 1, overflow = TextOverflow.Ellipsis)
-            }
+            },
+            condition = {
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Icon(
+                        painterResource(WeatherFormat.icon(snapshot.condition, snapshot.isDay)),
+                        contentDescription = null,
+                        tint = palette.accent,
+                        modifier = Modifier.size(32.dp),
+                    )
+                    Text(snapshot.conditionText, color = palette.onBase, style = MaterialTheme.typography.headlineSmall, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                }
+            },
+        )
+        Column(Modifier.foldAway((progress / 0.5f).coerceIn(0f, 1f))) {
+            Spacer(Modifier.height(6.dp))
             Text(
                 listOf(
                     stringResource(R.string.weather_high_low, WeatherFormat.temperature(snapshot.highC, unit), WeatherFormat.temperature(snapshot.lowC, unit)),
@@ -306,6 +370,51 @@ private fun Header(snapshot: WeatherSnapshot, unit: TemperatureUnit, palette: We
             )
         }
     }
+}
+
+// Stacked when expanded; slides into one row (digits then condition) as progress reaches 1.
+@Composable
+private fun TemperatureAndCondition(
+    progress: Float,
+    gap: androidx.compose.ui.unit.Dp,
+    digits: @Composable () -> Unit,
+    condition: @Composable () -> Unit,
+) {
+    Layout(content = { digits(); condition() }) { measurables, constraints ->
+        val gapPx = gap.roundToPx()
+        val loose = constraints.copy(minWidth = 0, minHeight = 0)
+        val d = measurables[0].measure(loose)
+        val cMax = lerp(constraints.maxWidth.toFloat(), (constraints.maxWidth - d.width - gapPx).coerceAtLeast(0).toFloat(), progress).roundToInt()
+        val c = measurables[1].measure(loose.copy(maxWidth = cMax))
+        val width = constraints.maxWidth
+        val expandedHeight = d.height + gapPx + c.height
+        val collapsedHeight = maxOf(d.height, c.height)
+        val height = lerp(expandedHeight.toFloat(), collapsedHeight.toFloat(), progress).roundToInt()
+        val total = d.width + gapPx + c.width
+        val collapsedStart = (width - total) / 2
+        layout(width, height) {
+            val dx = lerp(((width - d.width) / 2).toFloat(), collapsedStart.toFloat(), progress).roundToInt()
+            val dy = lerp(0f, ((collapsedHeight - d.height) / 2).toFloat(), progress).roundToInt()
+            val cx = lerp(((width - c.width) / 2).toFloat(), (collapsedStart + d.width + gapPx).toFloat(), progress).roundToInt()
+            val cy = lerp((d.height + gapPx).toFloat(), ((collapsedHeight - c.height) / 2).toFloat(), progress).roundToInt()
+            d.placeRelative(dx, dy)
+            c.placeRelative(cx, cy)
+        }
+    }
+}
+
+@Composable
+private fun DegreeSign(digitSize: androidx.compose.ui.unit.TextUnit, color: Color, progress: Float) {
+    val size = digitSize * 0.55f
+    Text(
+        "°",
+        color = color,
+        fontFamily = TemperatureFont,
+        fontSize = size,
+        lineHeight = size,
+        maxLines = 1,
+        softWrap = false,
+    )
 }
 
 @Composable
