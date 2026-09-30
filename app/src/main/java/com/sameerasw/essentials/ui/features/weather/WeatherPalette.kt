@@ -13,6 +13,8 @@ class WeatherPalette(
     val onBase: Color = Color.White,
     val onBaseMuted: Color = Color.White.copy(alpha = 0.66f),
 ) {
+    fun withAccent(color: Color) = WeatherPalette(glow, color, base, card, onBase, onBaseMuted)
+
     companion object {
         val Neutral = WeatherPalette(glow = Color(0xFF1E1E1E), accent = Color.White)
 

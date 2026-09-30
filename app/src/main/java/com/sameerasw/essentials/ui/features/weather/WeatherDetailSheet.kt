@@ -1,6 +1,8 @@
 package com.sameerasw.essentials.ui.features.weather
 
 import android.content.Context
+import android.os.Build
+import androidx.compose.material3.dynamicDarkColorScheme
 import android.text.format.DateFormat
 import android.text.format.DateUtils
 import androidx.compose.foundation.background
@@ -103,7 +105,10 @@ fun WeatherDetailSheet(onDismissRequest: () -> Unit) {
     val state by WeatherRepository.state.collectAsState()
     val snapshot = state.snapshot
     val unit = remember { WeatherFormat.unitFor(settings.getWeatherUnits()) }
-    val palette = remember(snapshot?.condition, snapshot?.isDay) { WeatherPalette.from(snapshot) }
+    val materialYou = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) dynamicDarkColorScheme(context).primary else null
+    val palette = remember(snapshot?.condition, snapshot?.isDay, materialYou) {
+        WeatherPalette.from(snapshot).let { base -> materialYou?.let(base::withAccent) ?: base }
+    }
     val effects = remember { settings.isIslandWeatherEffectsEnabled() && !DeviceUtils.isPowerSaveMode(context) }
     val effectSpec = remember(effects, snapshot?.condition, snapshot?.isDay, snapshot?.windKph) {
         snapshot?.takeIf { effects }?.let(WeatherEffectSpec::from) ?: WeatherEffectSpec.None
@@ -152,7 +157,6 @@ fun WeatherDetailSheet(onDismissRequest: () -> Unit) {
                         .fillMaxSize()
                         .verticalScroll(rememberScrollState())
                         .navigationBarsPadding()
-                        .padding(horizontal = 20.dp)
                         .padding(top = 36.dp, bottom = 40.dp),
                     verticalArrangement = Arrangement.spacedBy(20.dp),
                 ) {
@@ -162,13 +166,16 @@ fun WeatherDetailSheet(onDismissRequest: () -> Unit) {
                             if (state.loading) LoadingIndicator() else Text(errorLabel(context, state.error), color = palette.onBaseMuted)
                         }
                     } else {
-                        Header(snapshot, unit, palette)
-                        snapshot.activeAlerts().sortedByDescending { it.severity.ordinal }.forEach { AlertCard(it, palette) }
+                        Header(snapshot, unit, palette, Modifier.padding(horizontal = SIDE_PADDING))
+                        snapshot.activeAlerts().sortedByDescending { it.severity.ordinal }
+                            .forEach { AlertCard(it, palette, Modifier.padding(horizontal = SIDE_PADDING)) }
                         HourlySection(snapshot, unit, palette)
-                        snapshot.daily.orEmpty().takeIf { it.isNotEmpty() }?.let { DailySection(it, unit, palette) }
-                        DetailsSection(snapshot, unit, palette)
-                        SunSection(snapshot, palette)
+                        snapshot.daily.orEmpty().takeIf { it.isNotEmpty() }
+                            ?.let { DailySection(it, unit, palette, Modifier.padding(horizontal = SIDE_PADDING)) }
+                        DetailsSection(snapshot, unit, palette, Modifier.padding(horizontal = SIDE_PADDING))
+                        SunSection(snapshot, palette, Modifier.padding(horizontal = SIDE_PADDING))
                         Footer(
+                            modifier = Modifier.padding(horizontal = SIDE_PADDING),
                             snapshot = snapshot,
                             loading = state.loading,
                             error = state.error,
@@ -189,6 +196,8 @@ fun WeatherDetailSheet(onDismissRequest: () -> Unit) {
     }
 }
 
+private val SIDE_PADDING = 20.dp
+
 @OptIn(ExperimentalTextApi::class)
 private val TemperatureFont = FontFamily(
     Font(
@@ -202,9 +211,9 @@ private val TemperatureFont = FontFamily(
 )
 
 @Composable
-private fun Header(snapshot: WeatherSnapshot, unit: TemperatureUnit, palette: WeatherPalette) {
+private fun Header(snapshot: WeatherSnapshot, unit: TemperatureUnit, palette: WeatherPalette, modifier: Modifier) {
     val place = listOf(snapshot.locationName, snapshot.region).filter { it.isNotBlank() }.joinToString(", ")
-    Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(6.dp)) {
+    Column(modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(6.dp)) {
         if (place.isNotBlank()) {
             AssistChip(
                 onClick = {},
@@ -249,11 +258,11 @@ private fun Header(snapshot: WeatherSnapshot, unit: TemperatureUnit, palette: We
 }
 
 @Composable
-private fun AlertCard(alert: WeatherAlert, palette: WeatherPalette) {
+private fun AlertCard(alert: WeatherAlert, palette: WeatherPalette, modifier: Modifier) {
     val context = LocalContext.current
     val alertColor = MaterialTheme.colorScheme.error
     Column(
-        Modifier
+        modifier
             .fillMaxWidth()
             .clip(MaterialTheme.shapes.extraLarge)
             .background(alertColor.copy(alpha = 0.22f))
@@ -272,16 +281,6 @@ private fun AlertCard(alert: WeatherAlert, palette: WeatherPalette) {
     }
 }
 
-@Composable
-private fun SectionLabel(title: String, palette: WeatherPalette) {
-    Text(
-        title,
-        color = palette.onBaseMuted,
-        style = MaterialTheme.typography.titleSmall,
-        modifier = Modifier.padding(start = 8.dp, bottom = 10.dp),
-    )
-}
-
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun HourlySection(snapshot: WeatherSnapshot, unit: TemperatureUnit, palette: WeatherPalette) {
@@ -290,12 +289,11 @@ private fun HourlySection(snapshot: WeatherSnapshot, unit: TemperatureUnit, pale
     val hours = snapshot.hourly
     val carouselState = rememberCarouselState { hours.size }
     Column {
-        SectionLabel(stringResource(R.string.weather_detail_hourly), palette)
         HorizontalMultiBrowseCarousel(
             state = carouselState,
             preferredItemWidth = 104.dp,
             itemSpacing = 4.dp,
-            contentPadding = PaddingValues(0.dp),
+            contentPadding = PaddingValues(horizontal = SIDE_PADDING),
             modifier = Modifier.fillMaxWidth().height(176.dp),
         ) { index ->
             val hour = hours[index]
@@ -329,12 +327,11 @@ private fun HourlySection(snapshot: WeatherSnapshot, unit: TemperatureUnit, pale
 }
 
 @Composable
-private fun DailySection(days: List<DailyForecast>, unit: TemperatureUnit, palette: WeatherPalette) {
+private fun DailySection(days: List<DailyForecast>, unit: TemperatureUnit, palette: WeatherPalette, modifier: Modifier) {
     val low = days.minOf { it.lowC }
     val high = days.maxOf { it.highC }
     val span = (high - low).coerceAtLeast(1.0)
-    Column {
-        SectionLabel(stringResource(R.string.weather_detail_daily), palette)
+    Column(modifier) {
         RoundedCardContainer(spacing = 2.dp, cornerRadius = 28.dp) {
             days.forEachIndexed { index, day ->
                 Surface(color = palette.card, shape = MaterialTheme.shapes.extraSmall, modifier = Modifier.fillMaxWidth()) {
@@ -378,7 +375,7 @@ private fun DailySection(days: List<DailyForecast>, unit: TemperatureUnit, palet
 private class Detail(val icon: Int, val label: Int, val value: String)
 
 @Composable
-private fun DetailsSection(snapshot: WeatherSnapshot, unit: TemperatureUnit, palette: WeatherPalette) {
+private fun DetailsSection(snapshot: WeatherSnapshot, unit: TemperatureUnit, palette: WeatherPalette, modifier: Modifier) {
     val imperial = unit == TemperatureUnit.FAHRENHEIT
     val extras = snapshot.extras
     val details = buildList {
@@ -405,13 +402,14 @@ private fun DetailsSection(snapshot: WeatherSnapshot, unit: TemperatureUnit, pal
         extras?.dewPointC?.let { add(Detail(R.drawable.rounded_water_drop_24, R.string.weather_detail_dew_point, WeatherFormat.temperature(it, unit))) }
         extras?.cloudCover?.let { add(Detail(R.drawable.rounded_cloud_24, R.string.weather_detail_cloud_cover, "$it%")) }
     }
-    Column {
-        SectionLabel(stringResource(R.string.weather_detail_details), palette)
-        RoundedCardContainer(spacing = 2.dp, cornerRadius = 28.dp) {
-            details.chunked(2).forEach { row ->
-                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(2.dp)) {
-                    row.forEach { DetailTile(it, palette, Modifier.weight(1f)) }
-                    if (row.size == 1) Spacer(Modifier.weight(1f))
+    Column(modifier) {
+        Surface(color = palette.card, shape = MaterialTheme.shapes.extraLarge, modifier = Modifier.fillMaxWidth()) {
+            Column(Modifier.padding(vertical = 12.dp, horizontal = 8.dp)) {
+                details.chunked(2).forEach { row ->
+                    Row(Modifier.fillMaxWidth()) {
+                        row.forEach { DetailTile(it, palette, Modifier.weight(1f)) }
+                        if (row.size == 1) Spacer(Modifier.weight(1f))
+                    }
                 }
             }
         }
@@ -420,28 +418,25 @@ private fun DetailsSection(snapshot: WeatherSnapshot, unit: TemperatureUnit, pal
 
 @Composable
 private fun DetailTile(detail: Detail, palette: WeatherPalette, modifier: Modifier) {
-    Surface(color = palette.card, shape = MaterialTheme.shapes.extraSmall, modifier = modifier) {
-        Row(
-            Modifier.padding(horizontal = 18.dp, vertical = 18.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(14.dp),
-        ) {
-            Icon(painterResource(detail.icon), null, tint = palette.accent, modifier = Modifier.size(26.dp))
-            Column {
-                Text(stringResource(detail.label), color = palette.onBaseMuted, style = MaterialTheme.typography.labelMedium)
-                Text(detail.value, color = palette.onBase, style = MaterialTheme.typography.titleMedium, maxLines = 1)
-            }
+    Row(
+        modifier.padding(horizontal = 12.dp, vertical = 14.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(14.dp),
+    ) {
+        Icon(painterResource(detail.icon), null, tint = palette.accent, modifier = Modifier.size(26.dp))
+        Column {
+            Text(stringResource(detail.label), color = palette.onBaseMuted, style = MaterialTheme.typography.labelMedium)
+            Text(detail.value, color = palette.onBase, style = MaterialTheme.typography.titleMedium, maxLines = 1)
         }
     }
 }
 
 @Composable
-private fun SunSection(snapshot: WeatherSnapshot, palette: WeatherPalette) {
+private fun SunSection(snapshot: WeatherSnapshot, palette: WeatherPalette, modifier: Modifier) {
     val rise = snapshot.extras?.sunriseMillis ?: return
     val set = snapshot.extras?.sunsetMillis ?: return
     val context = LocalContext.current
-    Column {
-        SectionLabel(stringResource(R.string.weather_detail_sun), palette)
+    Column(modifier) {
         RoundedCardContainer(spacing = 2.dp, cornerRadius = 28.dp) {
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(2.dp)) {
                 SunTile(R.string.weather_detail_sunrise, formatTime(context, rise), palette, Modifier.weight(1f))
@@ -463,6 +458,7 @@ private fun SunTile(label: Int, time: String, palette: WeatherPalette, modifier:
 
 @Composable
 private fun Footer(
+    modifier: Modifier,
     snapshot: WeatherSnapshot,
     loading: Boolean,
     error: WeatherError?,
@@ -483,7 +479,7 @@ private fun Footer(
         DateUtils.MINUTE_IN_MILLIS,
         DateUtils.FORMAT_ABBREV_RELATIVE,
     ).toString()
-    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+    Row(modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
         Text(
             text = error?.let { errorLabel(context, it) } ?: "${WeatherProviders.byId(snapshot.providerId).displayName} - $age",
             color = palette.onBaseMuted,
