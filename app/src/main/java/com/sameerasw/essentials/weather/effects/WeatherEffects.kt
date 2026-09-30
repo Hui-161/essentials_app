@@ -69,6 +69,7 @@ fun WeatherEffects(
     clearTop: Dp = 0.dp,
     haptics: WeatherEffectHaptics? = null,
     surfaces: () -> List<RainSurface> = { emptyList() },
+    scrollTick: () -> Int = { 0 },
 ) {
     if (spec.isEmpty) return
     val density = LocalDensity.current
@@ -76,7 +77,8 @@ fun WeatherEffects(
     var canvasSize by remember { mutableStateOf(IntSize.Zero) }
     val currentHaptics by rememberUpdatedState(haptics)
     val currentSurfaces by rememberUpdatedState(surfaces)
-    val piles = remember(spec) { HashMap<String, FloatArray>() }
+    val currentScrollTick by rememberUpdatedState(scrollTick)
+    val snowState = remember(spec) { SnowState() }
     val layers = remember(spec) {
         spec.layers.mapIndexed { index, layer ->
             val field = ParticleField.create(particleCount(layer), seed = index * 7919 + 17)
@@ -94,9 +96,18 @@ fun WeatherEffects(
             currentHaptics?.let { sink ->
                 if (h > 0f && now > previous) emitHaptics(sink, layers, previous, now, h, density)
             }
+            val all = currentSurfaces()
+            val tick = currentScrollTick()
+            if (tick != snowState.tick) {
+                snowState.tick = tick
+                snowState.lastMove = now
+                dismissPiles(snowState, all, now, density.density)
+            }
+            snowState.settled = now - snowState.lastMove >= SURFACE_SETTLE_S
+            snowState.falling.removeAll { now - it.t0 > FALL_S }
             val snow = layers.firstOrNull { it.layer is WeatherEffectLayer.Snow }
-            if (snow != null && now > previous && canvasSize.width > 0) {
-                settleSnow(piles, currentSurfaces(), snow.field, previous, now, canvasSize.width.toFloat(), h, density.density)
+            if (snow != null && snowState.settled && now > previous && canvasSize.width > 0) {
+                settleSnow(snowState.piles, all, snow.field, previous, now, canvasSize.width.toFloat(), h, density.density)
             }
             previous = now
         }
@@ -125,8 +136,8 @@ fun WeatherEffects(
         val t = time.floatValue
         layers.forEach { state ->
             when (val layer = state.layer) {
-                is WeatherEffectLayer.Rain -> drawRain(state, layer, t, strength, surfaces())
-                is WeatherEffectLayer.Snow -> drawSnow(state.field, t, layer.intensity, strength, surfaces(), piles)
+                is WeatherEffectLayer.Rain -> drawRain(state, layer, t, strength, if (snowState.settled) surfaces() else emptyList())
+                is WeatherEffectLayer.Snow -> drawSnow(state.field, t, layer.intensity, strength, if (snowState.settled) surfaces() else emptyList(), snowState)
                 is WeatherEffectLayer.Hail -> drawHail(state, layer.intensity, t, strength)
                 is WeatherEffectLayer.Clouds -> drawClouds(state.field, t, layer.intensity, strength, fog = false)
                 is WeatherEffectLayer.Fog -> drawClouds(state.field, t, layer.intensity, strength, fog = true)
@@ -377,10 +388,39 @@ private fun DrawScope.drawSplash(sinceImpact: Float, x: Float, y: Float, alpha: 
     }
 }
 
+private const val SURFACE_SETTLE_S = 0.5f
+private const val FALL_S = 1.1f
+private const val FALL_GRAVITY_DP = 1500f
 private const val PILE_BUCKET_DP = 2f
 private const val PILE_MAX_DP = 9f
 private const val PILE_DEPOSIT_DP = 0.5f
 private const val PILE_REPOSE = 0.7f
+
+private class Falling(val t0: Float, val x: Float, val y0: Float, val r: Float, val vx: Float)
+
+private class SnowState {
+    val piles = HashMap<String, FloatArray>()
+    val falling = ArrayList<Falling>()
+    var tick = 0
+    var lastMove = 0f
+    var settled = false
+}
+
+private fun dismissPiles(state: SnowState, surfaces: List<RainSurface>, now: Float, density: Float) {
+    if (state.piles.isEmpty()) return
+    val bucket = PILE_BUCKET_DP * density
+    for (surface in surfaces) {
+        val pile = state.piles[surface.key] ?: continue
+        for (b in pile.indices) {
+            val height = pile[b]
+            if (height < 0.15f * density || Random.nextFloat() < 0.4f) continue
+            val x = (surface.anchorLeft + (b + 0.5f) * bucket).coerceIn(surface.rect.left, surface.rect.right)
+            val r = (0.7f * density + height * 0.5f) * (0.8f + 0.4f * Random.nextFloat())
+            state.falling.add(Falling(now + Random.nextFloat() * 0.18f, x, surface.topAt(x) - height * 0.5f, r, (Random.nextFloat() - 0.5f) * 36f * density))
+        }
+    }
+    state.piles.clear()
+}
 
 private class Flake(val x: Float, val y: Float, val radius: Float, val cycle: Int)
 
@@ -478,7 +518,7 @@ private fun DrawScope.drawSnow(
     intensity: Float,
     strength: Float,
     surfaces: List<RainSurface>,
-    piles: HashMap<String, FloatArray>,
+    state: SnowState,
 ) {
     val density = this.density
     for (i in 0 until field.count) {
@@ -490,8 +530,16 @@ private fun DrawScope.drawSnow(
         drawCircle(Color.White.copy(alpha = (0.25f + 0.35f * intensity) * strength), flake.radius, Offset(flake.x, flake.y))
     }
     for (surface in surfaces) {
-        val pile = piles[surface.key] ?: continue
+        val pile = state.piles[surface.key] ?: continue
         drawPile(surface, pile, 0.95f * strength.coerceAtMost(1f))
+    }
+    for (chunk in state.falling) {
+        val dt = t - chunk.t0
+        if (dt < 0f) continue
+        val life = 1f - dt / FALL_S
+        val cx = chunk.x + chunk.vx * dt
+        val cy = chunk.y0 + 0.5f * FALL_GRAVITY_DP * density * dt * dt
+        drawCircle(Color.White.copy(alpha = 0.9f * life * strength.coerceAtMost(1f)), chunk.r, Offset(cx, cy))
     }
 }
 

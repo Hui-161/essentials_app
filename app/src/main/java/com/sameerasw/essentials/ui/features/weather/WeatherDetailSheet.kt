@@ -217,6 +217,7 @@ fun WeatherScreen() {
         val glassRain = effectSpec.layers.filterIsInstance<com.sameerasw.essentials.weather.effects.WeatherEffectLayer.Rain>().maxByOrNull { it.intensity }
         val density = LocalDensity.current
         val collapse = remember { mutableFloatStateOf(0f) }
+        val scrollTick = remember { intArrayOf(0) }
         val sky = snapshot?.let { skyState(it, now) }
         val skyHeightPx = with(density) { SKY_HEIGHT.toPx() }
         val collapseShiftPx = with(density) { 60.dp.toPx() }
@@ -252,6 +253,7 @@ fun WeatherScreen() {
                         strength = 1.7f,
                         haptics = effectHaptics,
                         surfaces = { rainSurfaces.entries.mapNotNull { (key, source) -> source.resolve(key) }.filter { it.rect.top >= headerBottom.floatValue } },
+                        scrollTick = { scrollTick[0] },
                     )
                 }
                 val scrollState = rememberScrollState()
@@ -259,6 +261,7 @@ fun WeatherScreen() {
                 val connection = remember(maxCollapsePx) {
                     object : NestedScrollConnection {
                         override fun onPreScroll(available: Offset, source: NestedScrollSource): Offset {
+                            if (available.y != 0f) scrollTick[0]++
                             if (available.y >= 0f || collapse.floatValue >= 1f) return Offset.Zero
                             val next = (collapse.floatValue - available.y / maxCollapsePx).coerceIn(0f, 1f)
                             val consumed = -(next - collapse.floatValue) * maxCollapsePx
