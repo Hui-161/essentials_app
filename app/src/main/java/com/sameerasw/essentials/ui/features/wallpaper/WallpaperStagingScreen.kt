@@ -76,9 +76,14 @@ import com.sameerasw.essentials.domain.model.WallpaperInfo
 import com.sameerasw.essentials.ui.components.EssentialsFloatingToolbar
 import com.sameerasw.essentials.ui.modifiers.BlurDirection
 import com.sameerasw.essentials.ui.modifiers.progressiveBlur
+import androidx.compose.foundation.layout.defaultMinSize
+import androidx.compose.material3.ButtonGroupDefaults
+import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
+import androidx.compose.material3.OutlinedButton
 import com.sameerasw.essentials.utils.HapticUtil
 import kotlinx.coroutines.launch
 
+@OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 fun WallpaperStagingScreen(
     onBack: () -> Unit,
@@ -117,6 +122,33 @@ fun WallpaperStagingScreen(
     val bottomPadding = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
     val bottomBlurHeightPx = with(density) { 150.dp.toPx() }
 
+    var shuffledPages by remember { mutableStateOf<List<Int>>(emptyList()) }
+    var nextPageIndex by remember { mutableIntStateOf(0) }
+    var isFetchingMore by remember { mutableStateOf(false) }
+
+    fun fetchNextBatch() {
+        if (accessKey.isBlank() || isFetchingMore) return
+        if (nextPageIndex >= shuffledPages.size) return
+
+        isFetchingMore = true
+        coroutineScope.launch {
+            val newCandidates = mutableListOf<WallpaperInfo>()
+            while (newCandidates.size < 10 && nextPageIndex < shuffledPages.size) {
+                val pageToFetch = shuffledPages[nextPageIndex]
+                nextPageIndex++
+                val pagePhotos = stagingRepository.fetchCollectionPhotos(accessKey, pageToFetch)
+                val available = pagePhotos.filter { !historyIds.contains(it.id) }
+                val currentIds = candidatePhotos.map { it.id }.toSet()
+                val fresh = available.filter { !currentIds.contains(it.id) }
+                newCandidates.addAll(fresh)
+            }
+            if (newCandidates.isNotEmpty()) {
+                candidatePhotos = candidatePhotos + newCandidates.shuffled()
+            }
+            isFetchingMore = false
+        }
+    }
+
     fun loadData() {
         if (accessKey.isBlank()) {
             isLoading = false
@@ -127,17 +159,28 @@ fun WallpaperStagingScreen(
             stagedInfo = stagingRepository.fetchStagedWallpaper()
             historyIds = stagingRepository.fetchMobileHistory()
 
-            val fetched = mutableListOf<WallpaperInfo>()
-            var page = 1
-            while (fetched.size < 15 && page <= 3) {
-                val pagePhotos = stagingRepository.fetchCollectionPhotos(accessKey, page)
-                if (pagePhotos.isEmpty()) break
+            val totalPages = stagingRepository.fetchCollectionTotalPages(accessKey)
+            val pages = (1..totalPages).toList().shuffled()
+            shuffledPages = pages
+            nextPageIndex = 0
+
+            val initialCandidates = mutableListOf<WallpaperInfo>()
+            while (initialCandidates.size < 15 && nextPageIndex < pages.size) {
+                val pageToFetch = pages[nextPageIndex]
+                nextPageIndex++
+                val pagePhotos = stagingRepository.fetchCollectionPhotos(accessKey, pageToFetch)
                 val available = pagePhotos.filter { !historyIds.contains(it.id) }
-                fetched.addAll(available)
-                page++
+                initialCandidates.addAll(available)
             }
 
-            candidatePhotos = fetched.shuffled()
+            val randomized = initialCandidates.shuffled().toMutableList()
+            // If there's already a staged wallpaper, ensure it is the initial photo shown
+            stagedInfo?.let { staged ->
+                randomized.removeAll { it.id == staged.id }
+                randomized.add(0, staged)
+            }
+
+            candidatePhotos = randomized
             currentIndex = 0
             isLoading = false
         }
@@ -173,11 +216,6 @@ fun WallpaperStagingScreen(
                     verticalArrangement = Arrangement.spacedBy(16.dp),
                 ) {
                     LoadingIndicator(modifier = Modifier.size(44.dp))
-                    Text(
-                        text = stringResource(R.string.wallpaper_staging_loading),
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
                 }
             }
         } else if (currentPhoto != null) {
@@ -269,21 +307,6 @@ fun WallpaperStagingScreen(
                                     }
                                 },
                     )
-
-                    IconButton(
-                        onClick = {
-                            HapticUtil.performUIHaptic(view)
-                            showApiKeyDialog = true
-                        },
-                        modifier = Modifier.size(24.dp),
-                    ) {
-                        Icon(
-                            painter = painterResource(id = R.drawable.rounded_vpn_key_24),
-                            contentDescription = "Set API Key",
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.size(18.dp),
-                        )
-                    }
                 }
             }
         } else {
@@ -322,7 +345,7 @@ fun WallpaperStagingScreen(
             }
         }
 
-        // Floating Bottom Actions
+        
         AnimatedVisibility(
             visible = currentPhoto != null && !isLoading,
             enter = fadeIn() + slideInVertically { it / 2 },
@@ -336,36 +359,48 @@ fun WallpaperStagingScreen(
         ) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                horizontalArrangement = Arrangement.spacedBy(ButtonGroupDefaults.ConnectedSpaceBetween),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                // Next / Skip Button
-                FilledTonalButton(
-                    onClick = {
-                        HapticUtil.performUIHaptic(view)
-                        if (candidatePhotos.isNotEmpty()) {
-                            currentIndex = (currentIndex + 1) % candidatePhotos.size
-                        }
-                    },
-                    modifier = Modifier.weight(1f).height(56.dp),
-                    shape = RoundedCornerShape(20.dp),
-                ) {
-                    Icon(
-                        painter = painterResource(id = R.drawable.rounded_skip_next_24),
-                        contentDescription = null,
-                        modifier = Modifier.size(20.dp),
-                    )
+                
+                if (stagedInfo != null) {
+                    IconButton(
+                        onClick = {
+                            HapticUtil.performHeavyHaptic(view)
+                            isCommitting = true
+                            coroutineScope.launch {
+                                val success = stagingRepository.stageTomorrowWallpaper(null)
+                                isCommitting = false
+                                if (success) {
+                                    stagedInfo = null
+                                    Toast.makeText(
+                                        context,
+                                        R.string.wallpaper_staging_cleared_success,
+                                        Toast.LENGTH_SHORT,
+                                    ).show()
+                                }
+                            }
+                        },
+                        modifier =
+                            Modifier
+                                .size(52.dp)
+                                .clip(CircleShape)
+                                .background(MaterialTheme.colorScheme.surfaceContainerHigh),
+                    ) {
+                        Icon(
+                            painter = painterResource(id = R.drawable.rounded_delete_24),
+                            contentDescription = stringResource(R.string.wallpaper_staging_clear),
+                            tint = MaterialTheme.colorScheme.error,
+                            modifier = Modifier.size(22.dp),
+                        )
+                    }
                     Spacer(modifier = Modifier.width(8.dp))
-                    Text(
-                        text = stringResource(R.string.wallpaper_staging_next),
-                        style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
-                    )
                 }
 
-                // Stage Pick Button
+                
                 Button(
                     onClick = {
-                        if (currentPhoto == null || isCommitting) return@Button
+                        if (currentPhoto == null || isCommitting || isCurrentStaged) return@Button
                         HapticUtil.performHeavyHaptic(view)
                         isCommitting = true
                         coroutineScope.launch {
@@ -387,17 +422,25 @@ fun WallpaperStagingScreen(
                             }
                         }
                     },
-                    enabled = !isCommitting,
-                    modifier = Modifier.weight(1.3f).height(56.dp),
-                    shape = RoundedCornerShape(20.dp),
+                    enabled = !isCommitting && !isCurrentStaged,
+                    modifier =
+                        Modifier
+                            .weight(1.2f)
+                            .height(52.dp),
+                    shape = ButtonGroupDefaults.connectedLeadingButtonShapes().shape,
                     colors =
                         if (isCurrentStaged) {
                             ButtonDefaults.buttonColors(
-                                containerColor = MaterialTheme.colorScheme.secondaryContainer,
-                                contentColor = MaterialTheme.colorScheme.onSecondaryContainer,
+                                containerColor = MaterialTheme.colorScheme.surfaceContainerHighest,
+                                contentColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                                disabledContainerColor = MaterialTheme.colorScheme.surfaceContainerHighest,
+                                disabledContentColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f),
                             )
                         } else {
-                            ButtonDefaults.buttonColors()
+                            ButtonDefaults.buttonColors(
+                                containerColor = MaterialTheme.colorScheme.primary,
+                                contentColor = MaterialTheme.colorScheme.onPrimary,
+                            )
                         },
                 ) {
                     if (isCommitting) {
@@ -415,7 +458,7 @@ fun WallpaperStagingScreen(
                         Text(
                             text =
                                 if (isCurrentStaged) {
-                                    stringResource(R.string.wallpaper_staging_staged_badge)
+                                    stringResource(R.string.wallpaper_staging_picked)
                                 } else {
                                     stringResource(R.string.wallpaper_staging_stage)
                                 },
@@ -424,53 +467,51 @@ fun WallpaperStagingScreen(
                     }
                 }
 
-                // Clear Staged Button (Only visible if currently staged exists)
-                if (stagedInfo != null) {
-                    IconButton(
-                        onClick = {
-                            HapticUtil.performHeavyHaptic(view)
-                            isCommitting = true
-                            coroutineScope.launch {
-                                val success = stagingRepository.stageTomorrowWallpaper(null)
-                                isCommitting = false
-                                if (success) {
-                                    stagedInfo = null
-                                    Toast.makeText(
-                                        context,
-                                        R.string.wallpaper_staging_cleared_success,
-                                        Toast.LENGTH_SHORT,
-                                    ).show()
-                                }
+                
+                FilledTonalButton(
+                    onClick = {
+                        HapticUtil.performUIHaptic(view)
+                        if (candidatePhotos.isNotEmpty()) {
+                            currentIndex = (currentIndex + 1) % candidatePhotos.size
+                            if (candidatePhotos.size - currentIndex <= 5) {
+                                fetchNextBatch()
                             }
-                        },
-                        modifier =
-                            Modifier
-                                .size(56.dp)
-                                .clip(CircleShape)
-                                .background(MaterialTheme.colorScheme.surfaceContainerHigh),
-                    ) {
-                        Icon(
-                            painter = painterResource(id = R.drawable.rounded_delete_24),
-                            contentDescription = stringResource(R.string.wallpaper_staging_clear),
-                            tint = MaterialTheme.colorScheme.error,
-                            modifier = Modifier.size(22.dp),
-                        )
-                    }
+                        }
+                    },
+                    modifier =
+                        Modifier
+                            .weight(1f)
+                            .height(52.dp),
+                    shape = ButtonGroupDefaults.connectedTrailingButtonShapes().shape,
+                ) {
+                    Text(
+                        text = stringResource(R.string.wallpaper_staging_next),
+                        style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                    )
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Icon(
+                        painter = painterResource(id = R.drawable.rounded_arrow_forward_24),
+                        contentDescription = null,
+                        modifier = Modifier.size(20.dp),
+                    )
                 }
             }
         }
 
-        // Toolbar
+        
         EssentialsFloatingToolbar(
             title = stringResource(R.string.feat_wallpaper_staging_title),
             onBackClick = {
                 HapticUtil.performUIHaptic(view)
                 onBack()
             },
-            onHelpClick = {
+            fabAction = {
                 HapticUtil.performUIHaptic(view)
+                tempApiKey = accessKey
                 showApiKeyDialog = true
             },
+            fabIconRes = R.drawable.rounded_vpn_key_24,
+            fabContentDescription = stringResource(R.string.wallpaper_staging_set_api_key),
             modifier =
                 Modifier
                     .align(Alignment.BottomCenter)

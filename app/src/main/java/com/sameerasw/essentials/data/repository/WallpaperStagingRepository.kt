@@ -17,8 +17,6 @@ import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
-import java.net.HttpURLConnection
-import java.net.URL
 import java.util.Base64
 
 class WallpaperStagingRepository(
@@ -30,61 +28,116 @@ class WallpaperStagingRepository(
 
     suspend fun fetchStagedWallpaper(): WallpaperInfo? =
         withContext(Dispatchers.IO) {
-            try {
-                val url = URL("https://sameerasw.com/unsplash-next.json")
-                val connection = url.openConnection() as HttpURLConnection
-                connection.connectTimeout = 10000
-                connection.readTimeout = 10000
-                if (connection.responseCode != 200) return@withContext null
-
-                val jsonText = connection.inputStream.bufferedReader().use { it.readText() }
-                val rawMap = gson.fromJson(jsonText, Map::class.java) as? Map<*, *> ?: return@withContext null
-                val mobileMap = rawMap["mobile"] as? Map<*, *> ?: return@withContext null
-
-                val id = mobileMap["id"] as? String ?: return@withContext null
-                if (id.isBlank()) return@withContext null
-
-                val urlMobile = mobileMap["url"] as? String ?: ""
-                val urlFull = mobileMap["url_full"] as? String ?: ""
-                val author = mobileMap["author"] as? Map<*, *>
-                val authorName = author?.get("name") as? String ?: ""
-                val authorUsername = author?.get("username") as? String ?: ""
-                val authorLink = author?.get("link") as? String ?: ""
-                val link = mobileMap["link"] as? String ?: ""
-                val updatedAt = mobileMap["updatedAt"] as? String ?: ""
-
-                WallpaperInfo(
-                    id = id,
-                    url = urlMobile,
-                    urlMobile = urlMobile,
-                    urlFull = urlFull,
-                    authorName = authorName,
-                    authorUsername = authorUsername,
-                    authorLink = authorLink,
-                    photoLink = link,
-                    updatedAt = updatedAt,
+            val urls =
+                listOf(
+                    "https://sameerasw.com/unsplash-next.json",
+                    "https://raw.githubusercontent.com/sameerasw/sameerasw.com/main/public/unsplash-next.json",
                 )
-            } catch (e: Exception) {
-                e.printStackTrace()
-                null
+            for (urlString in urls) {
+                try {
+                    val request =
+                        Request.Builder()
+                            .url(urlString)
+                            .header("Cache-Control", "no-cache, no-store, must-revalidate")
+                            .header("Pragma", "no-cache")
+                            .build()
+
+                    val response = client.newCall(request).execute()
+                    if (!response.isSuccessful) continue
+
+                    val body = response.body?.string() ?: continue
+                    if (!body.trim().startsWith("{")) continue
+
+                    val rawMap = gson.fromJson(body, Map::class.java) as? Map<*, *> ?: continue
+                    val mobileMap = rawMap["mobile"] as? Map<*, *> ?: continue
+
+                    val id = mobileMap["id"] as? String ?: continue
+                    if (id.isBlank()) continue
+
+                    val urlMobile = mobileMap["url"] as? String ?: ""
+                    val urlFull = mobileMap["url_full"] as? String ?: ""
+                    val author = mobileMap["author"] as? Map<*, *>
+                    val authorName = author?.get("name") as? String ?: ""
+                    val authorUsername = author?.get("username") as? String ?: ""
+                    val authorLink = author?.get("link") as? String ?: ""
+                    val link = mobileMap["link"] as? String ?: ""
+                    val updatedAt = mobileMap["updatedAt"] as? String ?: ""
+
+                    return@withContext WallpaperInfo(
+                        id = id,
+                        url = urlMobile,
+                        urlMobile = urlMobile,
+                        urlFull = urlFull,
+                        authorName = authorName,
+                        authorUsername = authorUsername,
+                        authorLink = authorLink,
+                        photoLink = link,
+                        updatedAt = updatedAt,
+                    )
+                } catch (e: Exception) {
+                    // Continue to next URL fallback
+                }
             }
+            null
         }
 
     suspend fun fetchMobileHistory(): Set<String> =
         withContext(Dispatchers.IO) {
-            try {
-                val url = URL("https://sameerasw.com/unsplash-mobile-history.json")
-                val connection = url.openConnection() as HttpURLConnection
-                connection.connectTimeout = 10000
-                connection.readTimeout = 10000
-                if (connection.responseCode != 200) return@withContext emptySet()
+            val urls =
+                listOf(
+                    "https://sameerasw.com/unsplash-mobile-history.json",
+                    "https://raw.githubusercontent.com/sameerasw/sameerasw.com/main/public/unsplash-mobile-history.json",
+                    "https://raw.githubusercontent.com/sameerasw/sameerasw.com/main/.github/scripts/unsplash-mobile-history.json",
+                )
+            for (urlString in urls) {
+                try {
+                    val request =
+                        Request.Builder()
+                            .url(urlString)
+                            .header("Cache-Control", "no-cache, no-store, must-revalidate")
+                            .header("Pragma", "no-cache")
+                            .build()
 
-                val jsonText = connection.inputStream.bufferedReader().use { it.readText() }
-                val list = gson.fromJson(jsonText, List::class.java) as? List<*> ?: emptyList<Any>()
-                list.filterIsInstance<String>().toSet()
+                    val response = client.newCall(request).execute()
+                    if (!response.isSuccessful) continue
+
+                    val body = response.body?.string() ?: continue
+                    if (!body.trim().startsWith("[")) continue
+
+                    val list = gson.fromJson(body, List::class.java) as? List<*> ?: continue
+                    val result = list.filterIsInstance<String>().toSet()
+                    if (result.isNotEmpty()) {
+                        return@withContext result
+                    }
+                } catch (e: Exception) {
+                    // Continue to next URL fallback
+                }
+            }
+            emptySet()
+        }
+
+    suspend fun fetchCollectionTotalPages(accessKey: String): Int =
+        withContext(Dispatchers.IO) {
+            try {
+                val url = "https://api.unsplash.com/collections/$collectionId"
+                val request =
+                    Request.Builder()
+                        .url(url)
+                        .header("Authorization", "Client-ID $accessKey")
+                        .header("Accept-Version", "v1")
+                        .build()
+
+                val response = client.newCall(request).execute()
+                if (!response.isSuccessful) return@withContext 1
+
+                val body = response.body?.string() ?: return@withContext 1
+                val collection = gson.fromJson(body, Map::class.java) as? Map<*, *> ?: return@withContext 1
+                val totalPhotos = (collection["total_photos"] as? Number)?.toInt() ?: 0
+                val totalPages = Math.ceil(totalPhotos / 30.0).toInt().coerceAtLeast(1)
+                totalPages
             } catch (e: Exception) {
                 e.printStackTrace()
-                emptySet()
+                1
             }
         }
 
