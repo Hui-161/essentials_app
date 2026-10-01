@@ -100,6 +100,11 @@
     <uses-permission android:name="com.sameerasw.overcast.permission.READ_WEATHER" />
     <uses-permission android:name="android.permission.SET_WALLPAPER" />
 
+    <queries>
+        <package android:name="com.sameerasw.overcast" />
+        <provider android:authorities="com.sameerasw.overcast.weather" />
+    </queries>
+
     <application
         android:name=".EssentialsApp"
         android:allowBackup="true"

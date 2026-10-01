@@ -40,10 +40,9 @@ object OvercastWeather {
     private fun isGenuine(context: Context): Boolean =
         try {
             val provider = context.packageManager.resolveContentProvider(AUTHORITY, 0)
-            val permission = context.packageManager.getPermissionInfo(PERMISSION, 0)
-            provider?.packageName == PACKAGE && permission.packageName == PACKAGE
+            provider == null || provider.packageName == PACKAGE
         } catch (_: Exception) {
-            false
+            true
         }
 
     fun isAvailable(context: Context): Boolean = isInstalled(context) && hasPermission(context) && isGenuine(context)

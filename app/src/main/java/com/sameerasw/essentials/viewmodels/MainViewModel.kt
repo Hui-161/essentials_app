@@ -1851,7 +1851,7 @@ class MainViewModel : ViewModel() {
             PermissionUtils.isNotificationLightingAccessibilityServiceEnabled(context)
         isDefaultBrowserSet.value = PermissionUtils.isDefaultBrowser(context)
         isLocationPermissionGranted.value = PermissionUtils.hasLocationPermission(context)
-        isOvercastWeatherPermissionGranted.value = OvercastWeather.isAvailable(context)
+        isOvercastWeatherPermissionGranted.value = OvercastWeather.hasPermission(context)
         isBackgroundLocationPermissionGranted.value =
             PermissionUtils.hasBackgroundLocationPermission(context)
         isFullScreenIntentPermissionGranted.value = PermissionUtils.canUseFullScreenIntent(context)

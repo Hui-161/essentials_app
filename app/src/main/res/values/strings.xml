@@ -1590,6 +1590,7 @@
     <string name="action_telegram">Telegram</string>
     <string name="action_support">Support</string>
     <string name="label_other_apps">Other Apps</string>
+    <string name="app_overcast">Overcast</string>
     <string name="app_airsync">AirSync</string>
     <string name="app_zenzero">ZenZero</string>
     <string name="app_canvas">Canvas</string>
@@ -3046,5 +3047,18 @@
     <string name="watchface_promo_step3_title">3. Install on Watch</string>
     <string name="watchface_promo_step3_desc">Open the Play Store listing directly on your watch to install</string>
     <string name="watchface_promo_step3_action">Open on Watch</string>
+
+    <!-- Overcast Separation What's New -->
+    <string name="whats_new_overcast_section_title">Weather is Now Separate</string>
+    <string name="whats_new_overcast_desc">Weather has been separated into my brand new app, Overcast. Install to continue having weather forecasts and effects in Island brief.</string>
+    <string name="whats_new_overcast_card_title">Overcast</string>
+    <string name="whats_new_overcast_card_desc">Weather by sameerasw</string>
+    <string name="whats_new_overcast_action_install">Install Overcast</string>
+    <string name="whats_new_overcast_action_allow_permission">Allow Access</string>
+    <string name="whats_new_overcast_action_open">Open Overcast</string>
+    <string name="whats_new_overcast_status_installed">Installed &amp; Connected</string>
+    <string name="whats_new_overcast_status_permission_needed">Installed (Permission needed)</string>
+    <string name="whats_new_overcast_status_not_installed">Not installed</string>
+    <string name="whats_new_feature_tags_title">New: Feature tags and what they mean</string>
 </resources>
 

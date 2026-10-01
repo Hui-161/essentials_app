@@ -841,7 +841,7 @@ fun WhatsNewStepContent(
 
             // Custom content slot
             Box(modifier = Modifier.padding(horizontal = 24.dp)) {
-                WhatsNewCustomContent()
+                WhatsNewCustomContent(mainViewModel = viewModel)
             }
 
             Spacer(modifier = Modifier.height(16.dp))
