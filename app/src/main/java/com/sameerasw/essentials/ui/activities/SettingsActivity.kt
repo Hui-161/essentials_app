@@ -10,6 +10,7 @@
 package com.sameerasw.essentials
 
 import com.sameerasw.essentials.data.repository.SettingsRepository
+import com.sameerasw.essentials.ui.activities.WallpaperStagingActivity
 import com.sameerasw.essentials.ui.core.cards.ConfigPickerItem
 import android.Manifest
 import android.content.ClipData
@@ -1677,6 +1678,28 @@ fun SettingsContent(
                                         },
                                     modifier = Modifier.align(Alignment.CenterHorizontally),
                                 )
+                            }
+
+                            Button(
+                                onClick = {
+                                    HapticUtil.performUIHaptic(view)
+                                    val intent = Intent(context, WallpaperStagingActivity::class.java)
+                                    context.startActivity(intent)
+                                },
+                                modifier = Modifier.fillMaxWidth().defaultMinSize(minHeight = 44.dp),
+                                colors =
+                                    ButtonDefaults.buttonColors(
+                                        containerColor = MaterialTheme.colorScheme.primaryContainer,
+                                        contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
+                                    ),
+                            ) {
+                                Icon(
+                                    painter = painterResource(id = R.drawable.rounded_wallpaper_24),
+                                    contentDescription = null,
+                                    modifier = Modifier.size(18.dp),
+                                )
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Text(text = stringResource(R.string.feat_wallpaper_staging_title))
                             }
                         }
                     }

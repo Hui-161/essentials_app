@@ -665,6 +665,17 @@ class SettingsRepository(
         const val KEY_BUBBLE_WEB_FULLSCREEN = "bubble_web_fullscreen"
         const val KEY_SIM_NAMES_APPLY_ON_BOOT = "sim_names_apply_on_boot"
         const val KEY_POWER_SAVING_APPLY_ON_BOOT = "power_saving_apply_on_boot"
+        const val KEY_UNSPLASH_ACCESS_KEY = "unsplash_access_key"
+    }
+
+    fun getUnsplashAccessKey(): String? = prefs.getString(KEY_UNSPLASH_ACCESS_KEY, null)
+
+    fun setUnsplashAccessKey(key: String?) {
+        if (key.isNullOrBlank()) {
+            prefs.edit().remove(KEY_UNSPLASH_ACCESS_KEY).apply()
+        } else {
+            prefs.edit().putString(KEY_UNSPLASH_ACCESS_KEY, key.trim()).apply()
+        }
     }
 
     fun isSimNamesApplyOnBootEnabled(): Boolean = getBoolean(KEY_SIM_NAMES_APPLY_ON_BOOT, false)

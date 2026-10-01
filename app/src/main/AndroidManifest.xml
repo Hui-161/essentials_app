@@ -606,6 +606,12 @@
             android:label="@string/feat_daily_wallpaper_title"
             android:theme="@style/Theme.Essentials" />
 
+        <activity
+            android:name=".ui.activities.WallpaperStagingActivity"
+            android:exported="false"
+            android:label="@string/feat_wallpaper_staging_title"
+            android:theme="@style/Theme.Essentials" />
+
         <service
             android:name=".services.tiles.ScreenOffAccessibilityService"
             android:exported="true"
