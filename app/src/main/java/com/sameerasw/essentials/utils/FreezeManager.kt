@@ -37,6 +37,8 @@ object FreezeManager {
         context: Context,
         packageName: String,
     ): Boolean {
+        // Package names can come from imported settings or other components: never pass anything else to the shell
+        if (!ShellUtils.isValidPackageName(packageName)) return false
         val prefs = context.getSharedPreferences("essentials_prefs", Context.MODE_PRIVATE)
         val mode = prefs.getInt("freeze_mode", 0) // 0: FREEZE, 1: SUSPEND
 
@@ -59,6 +61,7 @@ object FreezeManager {
         context: Context,
         packageName: String,
     ): Boolean {
+        if (!ShellUtils.isValidPackageName(packageName)) return false
         val prefs = context.getSharedPreferences("essentials_prefs", Context.MODE_PRIVATE)
         val mode = prefs.getInt("freeze_mode", 0)
 
@@ -313,7 +316,7 @@ object FreezeManager {
         return try {
             ShellUtils.runCommand(
                 context,
-                "pm suspend --user 0 $packageName",
+                "pm suspend --user 0 ${ShellUtils.quote(packageName)}",
                 featureName = context.getString(R.string.feat_freeze_title),
             )
             true
@@ -335,7 +338,7 @@ object FreezeManager {
         return try {
             ShellUtils.runCommand(
                 context,
-                "pm unsuspend --user 0 $packageName",
+                "pm unsuspend --user 0 ${ShellUtils.quote(packageName)}",
                 featureName = context.getString(R.string.feat_freeze_title),
             )
             true
@@ -584,8 +587,8 @@ object FreezeManager {
 
         val cmd =
             when (newState) {
-                COMPONENT_ENABLED_STATE_DISABLED_USER -> "pm disable-user --user 0 $packageName"
-                COMPONENT_ENABLED_STATE_ENABLED -> "pm enable $packageName"
+                COMPONENT_ENABLED_STATE_DISABLED_USER -> "pm disable-user --user 0 ${ShellUtils.quote(packageName)}"
+                COMPONENT_ENABLED_STATE_ENABLED -> "pm enable ${ShellUtils.quote(packageName)}"
                 else -> return false
             }
 

@@ -3907,7 +3907,7 @@ class MainViewModel : ViewModel() {
                         val icon = resolveInfo.loadIcon(pm)
 
                         var bucket = 10
-                        val output = ShellUtils.runCommandWithOutput(context, "am get-standby-bucket $pkg")
+                        val output = ShellUtils.runCommandWithOutput(context, "am get-standby-bucket ${ShellUtils.quote(pkg)}")
                         if (output != null) {
                             val text = output.lowercase().trim()
                             bucket =
@@ -3964,7 +3964,7 @@ class MainViewModel : ViewModel() {
                     45 -> "restricted"
                     else -> "active"
                 }
-            ShellUtils.runCommand(context, "am set-standby-bucket $packageName $bucketName")
+            ShellUtils.runCommand(context, "am set-standby-bucket ${ShellUtils.quote(packageName)} $bucketName")
         }
     }
 
@@ -4002,7 +4002,7 @@ class MainViewModel : ViewModel() {
                     else -> "active"
                 }
             packageNames.forEach { pkg ->
-                ShellUtils.runCommand(context, "am set-standby-bucket $pkg $bucketName")
+                ShellUtils.runCommand(context, "am set-standby-bucket ${ShellUtils.quote(pkg)} $bucketName")
             }
         }
     }
@@ -4485,7 +4485,7 @@ class MainViewModel : ViewModel() {
             } else {
                 "{\"clockId\":\"$clockId\",\"seedColor\":${lockScreenClockSeedColor.intValue},\"metadata\":{\"metadataSelectedColorId\":\"${lockScreenClockSelectedColorId.value}\",\"metadataColorToneProgress\":${lockScreenClockColorTone.intValue},\"appliedTimestamp\":$timestamp},\"axes\":[{\"key\":\"wght\",\"value\":${lockScreenClockWeight.intValue}},{\"key\":\"wdth\",\"value\":${lockScreenClockWidth.intValue}},{\"key\":\"ROND\",\"value\":${lockScreenClockRoundness.intValue}}]}"
             }
-        val command = "settings put secure lock_screen_custom_clock_face '$json'"
+        val command = "settings put secure lock_screen_custom_clock_face ${ShellUtils.quote(json)}"
         var success = false
 
         if (PermissionUtils.canWriteSecureSettings(context)) {

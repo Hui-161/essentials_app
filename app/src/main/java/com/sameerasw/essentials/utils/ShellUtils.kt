@@ -23,6 +23,20 @@ object ShellUtils {
     private var lastAlertTime = 0L
     private const val ALERT_COOLDOWN = 180000L // 3 minutes
 
+    // Every segment starts with a letter (Android package name rules)
+    private val PACKAGE_NAME_REGEX = Regex("^[A-Za-z][A-Za-z0-9_]*(\\.[A-Za-z][A-Za-z0-9_]*)+$")
+    private val SETTINGS_KEY_REGEX = Regex("^[A-Za-z0-9_.:-]{1,256}$")
+
+    /** True if [name] is a syntactically valid package name (safe to place into a shell command). */
+    fun isValidPackageName(name: String?): Boolean =
+        name != null && name.length <= 255 && PACKAGE_NAME_REGEX.matches(name)
+
+    /** True if [key] can be a key of Settings.System/Secure/Global (safe to place into a shell command). */
+    fun isValidSettingsKey(key: String?): Boolean = key != null && SETTINGS_KEY_REGEX.matches(key)
+
+    /** Quotes [arg] as exactly one POSIX shell word, so its content is never interpreted by the shell. */
+    fun quote(arg: String): String = "'" + arg.replace("'", "'\\''") + "'"
+
     fun isRootEnabled(context: Context): Boolean {
         val prefs =
             context.getSharedPreferences(SettingsRepository.PREFS_NAME, Context.MODE_PRIVATE)

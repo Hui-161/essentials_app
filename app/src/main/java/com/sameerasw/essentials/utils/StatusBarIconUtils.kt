@@ -37,7 +37,7 @@ fun writeSecureSetting(
         if (value == null) {
             "settings delete secure $key"
         } else {
-            "settings put secure $key $value"
+            "settings put secure $key ${ShellUtils.quote(value)}"
         }
     ShellUtils.runCommand(context, command, notifyOnError = false)
     return true

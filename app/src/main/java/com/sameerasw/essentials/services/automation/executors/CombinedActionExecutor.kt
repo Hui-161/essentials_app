@@ -589,7 +589,7 @@ object CombinedActionExecutor {
                                 false
                             }
                         if (!success) {
-                            val command = "settings put secure $key $value"
+                            val command = "settings put secure $key ${ShellUtils.quote(value)}"
                             com.sameerasw.essentials.utils.ShellUtils
                                 .runCommand(context, command)
                         }
@@ -815,17 +815,17 @@ object CombinedActionExecutor {
                             } catch (e: Exception) {
                                 false
                             }
-                        if (!success) {
+                        // Automations can be imported from files: only well-formed keys may reach the shell
+                        if (!success && ShellUtils.isValidSettingsKey(entry.key)) {
                             val tableArg =
                                 when (entry.table) {
                                     Action.SettingsTable.SYSTEM -> "system"
                                     Action.SettingsTable.SECURE -> "secure"
                                     Action.SettingsTable.GLOBAL -> "global"
                                 }
-                            val safeValue = if (entry.value.contains(" ")) "\"${entry.value}\"" else entry.value
                             ShellUtils.runCommand(
                                 context,
-                                "settings put $tableArg ${entry.key} $safeValue",
+                                "settings put $tableArg ${entry.key} ${ShellUtils.quote(entry.value)}",
                                 featureName = context.getString(action.title),
                             )
                         }
