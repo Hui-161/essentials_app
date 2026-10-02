@@ -194,7 +194,7 @@ object WatchNotificationSyncManager {
                 put("canReply", canReplyToNotification(sbn))
             }
 
-        Log.d(TAG, "Sending notification to watch: $jsonObj")
+        Log.d(TAG, "Sending notification to watch")
         sendMessageToWatch(context, PATH_WATCH_NOTIFICATION, jsonObj.toString().toByteArray())
 
         // Ensure app icon is synced to watch for this package
@@ -323,7 +323,7 @@ object WatchNotificationSyncManager {
                     }
                     RemoteInput.addResultsToIntent(remoteInputs, intent, bundle)
                     action.actionIntent.send(context, 0, intent)
-                    Log.d(TAG, "Successfully replied to notification $key: $replyText")
+                    Log.d(TAG, "Successfully replied to notification $key")
                     break
                 }
             }

@@ -240,7 +240,7 @@ fun LinkPickerScreen(
     var baseShareWithApps by remember { mutableStateOf<List<ResolvedAppInfo>>(emptyList()) }
     var isLoadingApps by remember { mutableStateOf(true) }
 
-    Log.d(TAG, "LinkPickerScreen called with demo = $demo, URI = $currentUri")
+    Log.d(TAG, "LinkPickerScreen called with demo = $demo")
 
     LaunchedEffect(currentUri) {
         isLoadingApps = true
@@ -1103,7 +1103,6 @@ private fun queryOpenWithApps(
         val ourPackageName = context.packageName
         val intent = Intent(Intent.ACTION_VIEW, uri)
 
-        Log.d(TAG, "Querying OPEN_WITH for: $uri")
         Log.d(TAG, "Our package: $ourPackageName")
 
         // Try different flags combinations
@@ -1168,7 +1167,6 @@ private fun queryShareWithApps(
                 putExtra(Intent.EXTRA_TEXT, uri.toString())
             }
 
-        Log.d(TAG, "Querying SHARE_WITH for: $uri")
 
         val resolves =
             try {

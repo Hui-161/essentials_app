@@ -72,6 +72,12 @@ class UndoRedoManager {
         undoStack.push(HistoryAction(ActionType.DELETE, text, now))
     }
 
+    /** Forgets all history, e.g. when the keyboard moves to another text field or app. */
+    fun clear() {
+        undoStack.clear()
+        redoStack.clear()
+    }
+
     fun canUndo(): Boolean = undoStack.isNotEmpty()
 
     fun canRedo(): Boolean = redoStack.isNotEmpty()

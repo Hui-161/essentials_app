@@ -424,7 +424,6 @@ class LocationReachedViewModel(
             val lng = match.groupValues[2].toDoubleOrNull() ?: 0.0
 
             if (lat != 0.0 && lng != 0.0) {
-                android.util.Log.d("LocationReachedVM", "Parsed coordinates: $lat, $lng")
                 repository.setTempAlarm(
                     LocationAlarm(
                         latitude = lat,
@@ -439,7 +438,7 @@ class LocationReachedViewModel(
                 return true
             }
         }
-        android.util.Log.d("LocationReachedVM", "No coordinates found in text: $text")
+        android.util.Log.d("LocationReachedVM", "No coordinates found in shared text")
         repository.setIsProcessing(false)
         return false
     }
@@ -462,7 +461,6 @@ class LocationReachedViewModel(
                         shortUrl
                     }
                 }
-            android.util.Log.d("LocationReachedVM", "Resolved URL: $resolvedUrl")
             if (!tryParseAndSet(resolvedUrl)) {
                 val pathRegex = Regex("@(-?\\d+\\.\\d+),(-?\\d+\\.\\d+)")
                 val pathMatch = pathRegex.find(resolvedUrl)

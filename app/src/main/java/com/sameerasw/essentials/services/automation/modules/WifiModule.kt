@@ -52,14 +52,14 @@ class WifiModule : AutomationModule {
                     return
                 }
                 if (activeNetworkSsids[network] == ssid) return
-                Log.d(ID, "Wi-Fi connected: $ssid")
+                Log.d(ID, "Wi-Fi connected")
                 activeNetworkSsids[network] = ssid
                 handleTrigger { it is Trigger.WifiConnected && it.ssid == ssid }
             }
 
             override fun onLost(network: Network) {
                 val ssid = activeNetworkSsids.remove(network) ?: return
-                Log.d(ID, "Wi-Fi disconnected: $ssid")
+                Log.d(ID, "Wi-Fi disconnected")
                 handleTrigger { it is Trigger.WifiDisconnected && it.ssid == ssid }
             }
         }

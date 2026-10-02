@@ -64,3 +64,11 @@
 -keep class com.sameerasw.essentials.appfunctions.** { *; }
 -keep class androidx.appfunctions.** { *; }
 
+
+# Release builds: drop verbose/debug/info logging (warnings and errors stay), so no
+# clipboard, notification or location details end up in logcat or bug reports
+-assumenosideeffects class android.util.Log {
+    public static int v(...);
+    public static int d(...);
+    public static int i(...);
+}

@@ -71,6 +71,12 @@ class EssentialsInputMethodService :
     // Undo Manager
     private val undoRedoManager = UndoRedoManager()
 
+    // Password/incognito fields: nothing is learned or sent to the spell checker
+    private var isPrivateField = false
+
+    // On the lock screen whoever holds the phone could paste the owner's recent clipboard items
+    private val isDeviceLocked = MutableStateFlow(false)
+
     // Suggestion Lookup Job
     private var lookupJob: Job? = null
 
@@ -112,7 +118,6 @@ class EssentialsInputMethodService :
             val clip = clipboardManager.primaryClip ?: return
             if (clip.itemCount > 0) {
                 val text = clip.getItemAt(0).text?.toString()
-                Log.d("EssentialsIME", "Clipboard item: $text")
                 if (!text.isNullOrBlank()) {
                     val current = _clipboardHistory.value.toMutableList()
                     // Remove if exists to move to top
@@ -431,6 +436,8 @@ class EssentialsInputMethodService :
 
                 val useDarkTheme = isAlwaysDark || androidx.compose.foundation.isSystemInDarkTheme()
                 val suggestions by suggestionEngine.suggestions.collectAsState()
+                val clipboardItems by _clipboardHistory.collectAsState()
+                val deviceLocked by isDeviceLocked.collectAsState()
                 val resetTrigger by kbdResetTrigger.collectAsState()
 
                 EssentialsTheme(
@@ -450,7 +457,7 @@ class EssentialsInputMethodService :
                         isLongPressSymbolsEnabled = isLongPressSymbolsEnabled,
                         isAccentedCharactersEnabled = isAccentedCharactersEnabled,
                         suggestions = suggestions,
-                        clipboardHistory = _clipboardHistory.collectAsState().value,
+                        clipboardHistory = if (deviceLocked) emptyList() else clipboardItems,
                         onOpened = resetTrigger,
                         onSuggestionClick = { suggestion ->
                             val word = suggestion.text
@@ -470,7 +477,7 @@ class EssentialsInputMethodService :
                         onType = { text ->
                             undoRedoManager.recordInsert(text)
                             currentInputConnection?.commitText(text, 1)
-                            if (isUserDictionaryEnabled && text.length == 1 && !text[0].isLetterOrDigit()) {
+                            if (isUserDictionaryEnabled && !isPrivateField && text.length == 1 && !text[0].isLetterOrDigit()) {
                                 val ic = currentInputConnection
                                 if (ic != null) {
                                     val textBefore = ic.getTextBeforeCursor(50, 0)?.toString()
@@ -618,6 +625,14 @@ class EssentialsInputMethodService :
         restarting: Boolean,
     ) {
         super.onStartInputView(info, restarting)
+        isPrivateField = isPrivateInput(info)
+        isDeviceLocked.value =
+            (getSystemService(KEYGUARD_SERVICE) as? android.app.KeyguardManager)?.isKeyguardLocked == true
+        if (!restarting) {
+            // Undo must never paste text typed into another field or app
+            undoRedoManager.clear()
+        }
+        if (isPrivateField) suggestionEngine.clearSuggestions()
         // Ensure lifecycle is in RESUMED state when view becomes visible
         if (lifecycleRegistry.currentState != Lifecycle.State.RESUMED) {
             lifecycleRegistry.handleLifecycleEvent(Lifecycle.Event.ON_RESUME)
@@ -710,7 +725,30 @@ class EssentialsInputMethodService :
         }
     }
 
+    private fun isPrivateInput(info: android.view.inputmethod.EditorInfo?): Boolean {
+        if (info == null) return false
+        val inputClass = info.inputType and android.text.InputType.TYPE_MASK_CLASS
+        val variation = info.inputType and android.text.InputType.TYPE_MASK_VARIATION
+        val isPassword =
+            when (inputClass) {
+                android.text.InputType.TYPE_CLASS_TEXT ->
+                    variation == android.text.InputType.TYPE_TEXT_VARIATION_PASSWORD ||
+                        variation == android.text.InputType.TYPE_TEXT_VARIATION_VISIBLE_PASSWORD ||
+                        variation == android.text.InputType.TYPE_TEXT_VARIATION_WEB_PASSWORD
+                android.text.InputType.TYPE_CLASS_NUMBER ->
+                    variation == android.text.InputType.TYPE_NUMBER_VARIATION_PASSWORD
+                else -> false
+            }
+        val noLearning =
+            info.imeOptions and android.view.inputmethod.EditorInfo.IME_FLAG_NO_PERSONALIZED_LEARNING != 0
+        return isPassword || noLearning
+    }
+
     private fun updateSuggestions() {
+        if (isPrivateField) {
+            suggestionEngine.clearSuggestions()
+            return
+        }
         val ic = currentInputConnection ?: return
         val textBefore = ic.getTextBeforeCursor(50, 0)?.toString()
         if (!textBefore.isNullOrEmpty()) {

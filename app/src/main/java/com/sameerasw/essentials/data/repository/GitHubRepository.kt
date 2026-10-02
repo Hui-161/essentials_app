@@ -199,7 +199,7 @@ class GitHubRepository {
                     }
                 Log.d(
                     "GitHubRepository",
-                    "triggerWorkflowDispatch responseCode: $responseCode, body: $responseText",
+                    "triggerWorkflowDispatch responseCode: $responseCode",
                 )
 
                 responseCode == 204
@@ -248,7 +248,7 @@ class GitHubRepository {
                     } else {
                         conn1.errorStream?.bufferedReader()?.readText() ?: ""
                     }
-                Log.d("GitHubRepository", "getDiscussionId responseCode: $code1, body: $text1")
+                Log.d("GitHubRepository", "getDiscussionId responseCode: $code1")
 
                 val jsonObject1 = gson.fromJson(text1, Map::class.java)
                 val data1 = jsonObject1["data"] as? Map<*, *>
@@ -291,7 +291,7 @@ class GitHubRepository {
                     } else {
                         conn2.errorStream?.bufferedReader()?.readText() ?: ""
                     }
-                Log.d("GitHubRepository", "addDiscussionComment responseCode: $code2, body: $text2")
+                Log.d("GitHubRepository", "addDiscussionComment responseCode: $code2")
 
                 val jsonObject2 = gson.fromJson(text2, Map::class.java)
                 val data2 = jsonObject2["data"] as? Map<*, *>
