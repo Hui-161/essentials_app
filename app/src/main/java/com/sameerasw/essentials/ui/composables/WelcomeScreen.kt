@@ -887,7 +887,7 @@ fun WhatsNewStepContent(
 
                             val webUrl =
                                 updateInfo?.releaseUrl
-                                    ?: "https://github.com/sameerasw/essentials/releases"
+                                    ?: "https://github.com/${com.sameerasw.essentials.BuildConfig.RELEASE_REPO}/releases"
                             TextButton(
                                 onClick = {
                                     HapticUtil.performVirtualKeyHaptic(view)

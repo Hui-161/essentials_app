@@ -11,6 +11,7 @@ package com.sameerasw.essentials.data.repository
 
 import android.content.Context
 import com.google.gson.Gson
+import com.sameerasw.essentials.BuildConfig
 import com.sameerasw.essentials.domain.model.UpdateInfo
 import com.sameerasw.essentials.utils.AutoUpdateManagerHelper
 import kotlinx.coroutines.Dispatchers
@@ -19,44 +20,15 @@ import java.net.HttpURLConnection
 import java.net.URL
 
 class UpdateRepository {
+    /**
+     * Checks the GitHub releases of the repository this build is published from
+     * ([BuildConfig.RELEASE_REPO]). No other update source is contacted.
+     */
     suspend fun checkForUpdates(
         context: Context,
         isPreReleaseCheckEnabled: Boolean,
         currentVersion: String,
-    ): UpdateInfo? =
-        withContext(Dispatchers.IO) {
-            if (!isPreReleaseCheckEnabled) {
-                try {
-                    val autoUpdateHelper = AutoUpdateManagerHelper(context)
-                    val updateFeatures =
-                        autoUpdateHelper.checkForUpdate("https://sameerasw.com/essentials-update.json")
-
-                    if (updateFeatures != null && updateFeatures.latestversion.isNotEmpty()) {
-                        val latestVersion = updateFeatures.latestversion
-                        val hasUpdate = isNewerVersion(currentVersion, latestVersion)
-                        return@withContext UpdateInfo(
-                            versionName = latestVersion,
-                            releaseNotes = updateFeatures.changelog,
-                            downloadUrl = updateFeatures.apk_url,
-                            releaseUrl =
-                                if (updateFeatures.changelog.startsWith(
-                                        "http",
-                                    )
-                                ) {
-                                    updateFeatures.changelog
-                                } else {
-                                    "https://github.com/sameerasw/essentials/releases"
-                                },
-                            isUpdateAvailable = hasUpdate,
-                        )
-                    }
-                } catch (e: Exception) {
-                    e.printStackTrace()
-                }
-            }
-
-            checkForUpdatesFromGitHub(isPreReleaseCheckEnabled, currentVersion)
-        }
+    ): UpdateInfo? = checkForUpdatesFromGitHub(isPreReleaseCheckEnabled, currentVersion)
 
     private suspend fun checkForUpdatesFromGitHub(
         isPreReleaseCheckEnabled: Boolean,
@@ -66,13 +38,15 @@ class UpdateRepository {
             try {
                 val urlString =
                     if (isPreReleaseCheckEnabled) {
-                        "https://api.github.com/repos/sameerasw/essentials/releases"
+                        "https://api.github.com/repos/${BuildConfig.RELEASE_REPO}/releases"
                     } else {
-                        "https://api.github.com/repos/sameerasw/essentials/releases/latest"
+                        "https://api.github.com/repos/${BuildConfig.RELEASE_REPO}/releases/latest"
                     }
 
                 val url = URL(urlString)
                 val connection = url.openConnection() as HttpURLConnection
+                connection.connectTimeout = 15_000
+                connection.readTimeout = 15_000
 
                 if (connection.responseCode != 200) {
                     return@withContext null
@@ -87,10 +61,7 @@ class UpdateRepository {
                                 .fromJson(releaseData, Array<Any>::class.java)
                                 .filterIsInstance<Map<String, Any>>()
 
-                        releases.maxByOrNull { rel ->
-                            val tagName = (rel["tag_name"] as? String)?.removePrefix("v") ?: "0.0.0"
-                            SemanticVersion.parse(tagName)
-                        }
+                        releases.maxByOrNull { rel -> buildNumber(rel["tag_name"] as? String) ?: -1 }
                     } else {
                         Gson().fromJson(releaseData, Map::class.java) as? Map<String, Any>
                     }
@@ -102,15 +73,20 @@ class UpdateRepository {
                 val releaseUrl = release["html_url"] as? String ?: ""
                 val assets = (release["assets"] as? List<*>)?.filterIsInstance<Map<String, Any>>()
                 val downloadUrl =
-                    assets
-                        ?.firstOrNull { it["name"].toString() == "app-release.apk" }
-                        ?.get("browser_download_url") as? String
-                        ?: assets
+                    (
+                        assets
                             ?.firstOrNull { it["name"].toString().endsWith(".apk") }
                             ?.get("browser_download_url") as? String
-                        ?: ""
+                    )?.takeIf { AutoUpdateManagerHelper.isTrustedDownloadUrl(it) } ?: ""
 
-                val hasUpdate = isNewerVersion(currentVersion, latestVersion)
+                // Release tags end with the build number (= versionCode), e.g. v18.5-beta.1-fork.7930
+                val latestBuild = buildNumber(release["tag_name"] as? String)
+                val hasUpdate =
+                    if (latestBuild != null) {
+                        latestBuild > BuildConfig.VERSION_CODE
+                    } else {
+                        isNewerVersion(currentVersion, latestVersion)
+                    }
 
                 UpdateInfo(
                     versionName = latestVersion,
@@ -124,6 +100,9 @@ class UpdateRepository {
                 null
             }
         }
+
+    private fun buildNumber(tagName: String?): Int? =
+        tagName?.let { Regex("""-fork\.(\d+)$""").find(it)?.groupValues?.get(1)?.toIntOrNull() }
 
     private fun isNewerVersion(
         current: String,
