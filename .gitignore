@@ -47,3 +47,8 @@ sentry.properties
 .claude/
 
 .DS_Store
+# Signing keys (release key via CI secrets or local keystore.properties, never committed)
+app/signing/
+*.keystore
+*.jks
+keystore.properties

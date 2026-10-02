@@ -275,3 +275,85 @@ dependencies {
     // QR Code Engine
     implementation(libs.zxing.core)
 }
+
+// ---- Fork releases (Hui-161/essentials_app) ----
+// Kept in one block at the end of the file so that merges from upstream rarely conflict here.
+
+// GitHub repository whose releases the in-app updater checks and installs from
+val releaseRepo = "Hui-161/essentials_app"
+
+// versionCode = number of commits: grows with every commit, also across merges from upstream.
+// A shallow clone would count only a few commits and produce a "downgrade", so refuse it.
+val gitCommitCount: Int =
+    try {
+        val shallow =
+            providers
+                .exec { commandLine("git", "rev-parse", "--is-shallow-repository") }
+                .standardOutput.asText
+                .get()
+                .trim()
+        if (shallow == "true") throw GradleException("Shallow git clone: run 'git fetch --unshallow' (CI: fetch-depth: 0)")
+        providers
+            .exec { commandLine("git", "rev-list", "--count", "HEAD") }
+            .standardOutput.asText
+            .get()
+            .trim()
+            .toInt()
+    } catch (e: GradleException) {
+        throw e
+    } catch (e: Exception) {
+        1
+    }
+
+// Release key: environment variables (CI) or a local, gitignored keystore.properties
+val keystoreProperties =
+    rootProject.file("keystore.properties").takeIf { it.exists() }?.let { file ->
+        Properties().apply { file.inputStream().use { load(it) } }
+    }
+
+fun signingValue(name: String): String? = System.getenv(name)?.takeIf { it.isNotBlank() } ?: keystoreProperties?.getProperty(name)
+
+val releaseStoreFile = signingValue("RELEASE_STORE_FILE")?.let { rootProject.file(it) }?.takeIf { it.exists() }
+
+// Fixed dev key for debug builds, so CI and local builds install over each other (gitignored)
+val devKeystore = file("signing/dev.keystore")
+
+android {
+    defaultConfig {
+        versionCode = gitCommitCount
+        // Upstream version plus build number, e.g. 18.5-beta.1-fork.7930 (release tags: v<versionName>)
+        versionName = "$versionName-fork.$gitCommitCount"
+        buildConfigField("String", "RELEASE_REPO", "\"$releaseRepo\"")
+    }
+
+    signingConfigs {
+        if (releaseStoreFile != null) {
+            create("release") {
+                storeFile = releaseStoreFile
+                storePassword = signingValue("RELEASE_STORE_PASSWORD")
+                keyAlias = signingValue("RELEASE_KEY_ALIAS")
+                keyPassword = signingValue("RELEASE_KEY_PASSWORD")
+            }
+        }
+        if (devKeystore.exists()) {
+            create("dev") {
+                storeFile = devKeystore
+                storePassword = "android"
+                keyAlias = "androiddebugkey"
+                keyPassword = "android"
+            }
+        }
+    }
+
+    buildTypes {
+        release {
+            signingConfigs.findByName("release")?.let { signingConfig = it }
+        }
+        debug {
+            // Separate package: a debug build never replaces (or blocks updates of) the release app
+            applicationIdSuffix = ".debug"
+            versionNameSuffix = "-debug"
+            signingConfigs.findByName("dev")?.let { signingConfig = it }
+        }
+    }
+}
