@@ -6,31 +6,6 @@ plugins {
     alias(libs.plugins.kotlin.compose)
     alias(libs.plugins.ksp)
     alias(libs.plugins.aboutlibraries)
-    alias(libs.plugins.sentry.android.gradle)
-}
-
-val sentryAuthToken: String? =
-    rootProject.file("sentry.properties").takeIf { it.exists() }?.let { file ->
-        Properties().apply { file.inputStream().use { load(it) } }
-            .getProperty("auth.token")
-            ?.takeIf { it.isNotBlank() }
-    } ?: System.getenv("SENTRY_AUTH_TOKEN")
-
-sentry {
-    org.set("sameeraswcom")
-    projectName.set("essentials")
-    authToken.set(sentryAuthToken)
-
-    includeProguardMapping.set(true)
-    autoUploadProguardMapping.set(sentryAuthToken != null)
-    includeSourceContext.set(false)
-    includeNativeSources.set(false)
-    uploadNativeSymbols.set(false)
-
-    autoInstallation.enabled.set(false)
-    tracingInstrumentation.enabled.set(false)
-    includeDependenciesReport.set(false)
-    telemetry.set(false)
 }
 
 kotlin {
@@ -244,7 +219,6 @@ dependencies {
 
     // GSMArena Parsing
     implementation(libs.jsoup)
-    implementation(libs.sentry.android)
     implementation(libs.androidx.graphics.shapes)
 
     // Media3 for Live Wallpaper & Online Help Media
