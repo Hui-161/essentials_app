@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+   Debug builds use the package suffix .debug and a different signing key. They must not define
+   the same custom permissions as the release app, otherwise Android refuses to install both.
+-->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
+
+    <permission
+        android:name="com.sameerasw.permission.ESSENTIALS_AIRSYNC_BRIDGE"
+        tools:node="remove" />
+    <permission
+        android:name="com.sameerasw.essentials.permission.EXTERNAL_CONTROL"
+        tools:node="remove" />
+    <permission-group
+        android:name="com.sameerasw.essentials.permission-group.EXTERNAL_CONTROL"
+        tools:node="remove" />
+</manifest>

@@ -917,6 +917,7 @@
     <string name="action_install_update">Install Update</string>
     <string name="downloading_update_progress">Downloading update (%1$d%%)</string>
     <string name="update_download_failed">Download failed</string>
+    <string name="update_signature_mismatch">The update is not signed like this app and was not installed</string>
     <string name="perm_accessibility_desc_remap">Required to intercept hardware button events</string>
     <string name="perm_accessibility_desc_essentials_on_display">Required to intercept volume key events while the screen is off to trigger the Essentials On Display overlay.</string>
     <string name="perm_accessibility_desc_duo">Required to display the ambient indicator overlay around the camera cutout.</string>

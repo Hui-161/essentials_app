@@ -68,14 +68,13 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.core.content.FileProvider
+import com.sameerasw.essentials.BuildConfig
 import com.sameerasw.essentials.R
 import com.sameerasw.essentials.ui.core.containers.RoundedCardContainer
 import com.sameerasw.essentials.ui.theme.Shapes
 import com.sameerasw.essentials.utils.HapticUtil
 import com.sameerasw.essentials.utils.LogManager
 import com.sameerasw.essentials.viewmodels.MainViewModel
-import io.sentry.Sentry
-import io.sentry.protocol.Feedback
 import org.json.JSONObject
 import java.io.File
 import java.text.SimpleDateFormat
@@ -518,14 +517,15 @@ fun BugReportBottomSheet(
                                 }
                             }
                         }
-                        val feedback = Feedback(feedbackText)
-                        if (contactEmail.isNotBlank()) {
-                            feedback.contactEmail = contactEmail
-                        }
-                        Sentry.captureFeedback(feedback)
-                        Toast
-                            .makeText(context, R.string.msg_feedback_sent, Toast.LENGTH_SHORT)
-                            .show()
+                        // No crash reporting service in this build: feedback becomes an issue in the release repository
+                        val intent =
+                            Intent(
+                                Intent.ACTION_VIEW,
+                                Uri.parse(
+                                    "https://github.com/${BuildConfig.RELEASE_REPO}/issues/new?body=${Uri.encode(feedbackText)}",
+                                ),
+                            )
+                        context.startActivity(intent)
                         onDismissRequest()
                     },
                     modifier = Modifier.fillMaxWidth(),
@@ -576,7 +576,7 @@ fun BugReportBottomSheet(
                             val intent =
                                 Intent(
                                     Intent.ACTION_VIEW,
-                                    Uri.parse("https://github.com/sameerasw/essentials/issues/new?body=$encodedBody"),
+                                    Uri.parse("https://github.com/${BuildConfig.RELEASE_REPO}/issues/new?body=$encodedBody"),
                                 )
                             context.startActivity(intent)
                         },

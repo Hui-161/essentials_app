@@ -90,7 +90,6 @@ import com.sameerasw.essentials.ui.components.WhatsNewCustomContent
 import com.sameerasw.essentials.ui.components.text.SimpleMarkdown
 import com.sameerasw.essentials.ui.core.cards.IconToggleItem
 import com.sameerasw.essentials.ui.core.containers.RoundedCardContainer
-import com.sameerasw.essentials.ui.core.pickers.CrashReportingPicker
 import com.sameerasw.essentials.ui.core.pickers.LanguagePicker
 import com.sameerasw.essentials.ui.core.sheets.UpdateBottomSheet
 import com.sameerasw.essentials.ui.theme.GoogleSansFlexRounded
@@ -171,10 +170,7 @@ fun WelcomeScreen(
                     }
 
                     OnboardingStep.ACKNOWLEDGEMENT -> {
-                        val sentryMode by viewModel.sentryReportMode
                         AcknowledgementStepContent(
-                            sentryMode = sentryMode,
-                            onSentryModeSelected = { viewModel.setSentryReportMode(it, context) },
                             onBack = {
                                 HapticUtil.performVirtualKeyHaptic(view)
                                 currentStep = OnboardingStep.WELCOME
@@ -454,8 +450,6 @@ fun WelcomeStepContent(
 
 @Composable
 fun AcknowledgementStepContent(
-    sentryMode: String,
-    onSentryModeSelected: (String) -> Unit,
     onBack: () -> Unit,
     onNext: () -> Unit,
 ) {
@@ -522,15 +516,6 @@ fun AcknowledgementStepContent(
 
                 Spacer(modifier = Modifier.height(16.dp))
             }
-        }
-
-        Spacer(modifier = Modifier.height(16.dp))
-
-        RoundedCardContainer {
-            CrashReportingPicker(
-                selectedMode = sentryMode,
-                onModeSelected = onSentryModeSelected,
-            )
         }
 
         Spacer(modifier = Modifier.height(16.dp))
@@ -887,7 +872,7 @@ fun WhatsNewStepContent(
 
                             val webUrl =
                                 updateInfo?.releaseUrl
-                                    ?: "https://github.com/sameerasw/essentials/releases"
+                                    ?: "https://github.com/${com.sameerasw.essentials.BuildConfig.RELEASE_REPO}/releases"
                             TextButton(
                                 onClick = {
                                     HapticUtil.performVirtualKeyHaptic(view)

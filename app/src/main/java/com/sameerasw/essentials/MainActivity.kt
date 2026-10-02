@@ -290,7 +290,8 @@ class MainActivity : AppCompatActivity() {
                             viewModel.requestNotificationPermission(this@MainActivity)
                         }
                         if (!viewModel.isUpdateAvailable.value) {
-                            viewModel.checkForUpdates(context, manual = true)
+                            // Respects the "Auto check for updates" switch (manual checks stay in settings)
+                            viewModel.checkForUpdates(context, manual = false)
                         }
                         updatesViewModel.loadTrackedRepos(context)
                     }

@@ -2,7 +2,6 @@
 aboutlibraries = "15.2.0"
 agp = "9.3.1"
 api = "13.1.5"
-autoupdater = "1.0.1"
 biometric = "1.2.0-alpha05"
 carApp = "1.7.0"
 coilGif = "2.7.0"
@@ -45,8 +44,6 @@ foundationLayoutVersion = "1.13.0-alpha03"
 foundationVersion = "1.13.0-alpha03"
 wearRemoteInteractionsVersion = "1.2.0"
 work = "2.11.2"
-sentry = "8.50.1"
-sentryGradlePlugin = "6.22.0"
 graphicsShapes = "1.1.0"
 media3 = "1.10.1"
 wearRemoteInteractions = "1.2.0"
@@ -73,7 +70,6 @@ androidx-glance-material3 = { module = "androidx.glance:glance-material3", versi
 androidx-palette = { module = "androidx.palette:palette", version.ref = "palette" }
 androidx-wear-remote-interactions-v110alpha02 = { module = "androidx.wear:wear-remote-interactions", version.ref = "wearRemoteInteractionsVersion" }
 api-v1315 = { module = "dev.rikka.shizuku:api", version.ref = "api" }
-autoupdater = { module = "com.github.CSAbhiOnline:AutoUpdater", version.ref = "autoupdater" }
 coil-compose = { module = "io.coil-kt:coil-compose", version.ref = "coilGif" }
 coil-gif = { module = "io.coil-kt:coil-gif", version.ref = "coilGif" }
 gson-v2140 = { module = "com.google.code.gson:gson", version.ref = "gsonVersion" }
@@ -110,7 +106,6 @@ androidx-material3 = { group = "androidx.compose.material3", name = "material3",
 androidx-foundation-layout = { group = "androidx.compose.foundation", name = "foundation-layout", version.ref = "foundationLayoutVersion" }
 androidx-foundation = { group = "androidx.compose.foundation", name = "foundation", version.ref = "foundationVersion" }
 androidx-work-runtime-ktx = { group = "androidx.work", name = "work-runtime-ktx", version.ref = "work" }
-sentry-android = { group = "io.sentry", name = "sentry-android", version.ref = "sentry" }
 androidx-graphics-shapes = { group = "androidx.graphics", name = "graphics-shapes", version.ref = "graphicsShapes" }
 androidx-media3-exoplayer = { group = "androidx.media3", name = "media3-exoplayer", version.ref = "media3" }
 androidx-media3-common = { group = "androidx.media3", name = "media3-common", version.ref = "media3" }
@@ -130,5 +125,4 @@ android-library = { id = "com.android.library", version.ref = "agp" }
 kotlin-compose = { id = "org.jetbrains.kotlin.plugin.compose", version.ref = "kotlin" }
 ksp = { id = "com.google.devtools.ksp", version.ref = "ksp" }
 aboutlibraries = { id = "com.mikepenz.aboutlibraries.plugin", version.ref = "aboutlibraries" }
-sentry-android-gradle = { id = "io.sentry.android.gradle", version.ref = "sentryGradlePlugin" }
 

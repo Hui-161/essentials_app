@@ -493,7 +493,6 @@ class MainViewModel : ViewModel() {
     val motionBlurScale = mutableFloatStateOf(1.0f)
     val isOnlineHelpMediaEnabled = mutableStateOf(true)
     val isSwipeTabsEnabled = mutableStateOf(true)
-    val sentryReportMode = mutableStateOf("auto")
     val isPowerSaveModeEnabled = mutableStateOf(false)
     private var powerSaveReceiver: BroadcastReceiver? = null
 
@@ -1478,20 +1477,6 @@ class MainViewModel : ViewModel() {
         }
 
     /**
-     * Updates the Sentry crash and feedback reporting mode preference.
-     *
-     * @param mode [String] Desired report mode ("automatic", "manual", or "disabled").
-     * @param context [Context] Application context for settings persistence.
-     */
-    fun setSentryReportMode(
-        mode: String,
-        context: Context,
-    ) {
-        sentryReportMode.value = mode
-        settingsRepository.putString(SettingsRepository.KEY_SENTRY_REPORT_MODE, mode)
-    }
-
-    /**
      * Applies and updates the application-wide display language locale.
      *
      * @param languageCode [String] BCP-47 language tag (e.g., "en", "si", "de").
@@ -2124,9 +2109,6 @@ class MainViewModel : ViewModel() {
             settingsRepository.getBoolean(SettingsRepository.KEY_SWIPE_TABS, true)
         isOnlineHelpMediaEnabled.value =
             settingsRepository.isOnlineHelpMediaEnabled()
-        sentryReportMode.value =
-            settingsRepository.getString(SettingsRepository.KEY_SENTRY_REPORT_MODE, "auto")
-                ?: "auto"
 
         // Live Wallpaper initialization
         liveWallpaperSelectedVideo.value = settingsRepository.getLiveWallpaperSelectedVideo()
