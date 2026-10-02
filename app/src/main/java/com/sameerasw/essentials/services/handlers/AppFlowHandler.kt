@@ -102,11 +102,13 @@ class AppFlowHandler(
                 addAction(ACTION_ABORT_FREEZE)
                 addAction(ACTION_RESTORE_NOW)
             }
-        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU) {
-            context.registerReceiver(shutUpReceiver, filter, Context.RECEIVER_EXPORTED)
-        } else {
-            context.registerReceiver(shutUpReceiver, filter)
-        }
+        // Only sent by this app's own notifications: never accept these actions from other apps
+        androidx.core.content.ContextCompat.registerReceiver(
+            context,
+            shutUpReceiver,
+            filter,
+            androidx.core.content.ContextCompat.RECEIVER_NOT_EXPORTED,
+        )
     }
 
     // App Lock State

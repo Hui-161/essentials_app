@@ -217,7 +217,12 @@ class AmbientDreamService : DreamService() {
 
         // Register receiver
         val filter = IntentFilter("SHOW_AMBIENT_GLANCE")
-        registerReceiver(receiver, filter, RECEIVER_EXPORTED)
+        androidx.core.content.ContextCompat.registerReceiver(
+            this,
+            receiver,
+            filter,
+            androidx.core.content.ContextCompat.RECEIVER_NOT_EXPORTED,
+        )
         isReceiverRegistered = true
 
         // Register Media Session Listener

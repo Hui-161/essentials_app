@@ -235,7 +235,7 @@ private fun BubbleWebScreen(
                                 displayZoomControls = false
                                 loadWithOverviewMode = true
                                 useWideViewPort = true
-                                mixedContentMode = WebSettings.MIXED_CONTENT_COMPATIBILITY_MODE
+                                mixedContentMode = WebSettings.MIXED_CONTENT_NEVER_ALLOW
                             }
 
                             if (isPrivate) {
@@ -261,10 +261,14 @@ private fun BubbleWebScreen(
                                     val scheme = uri.scheme?.lowercase() ?: return false
 
                                     if (scheme != "http" && scheme != "https") {
+                                        // Web pages may only open other apps after a user tap
+                                        if (request?.hasGesture() != true) return true
                                         try {
                                             val intent = Intent.parseUri(uri.toString(), Intent.URI_INTENT_SCHEME).apply {
                                                 addCategory(Intent.CATEGORY_BROWSABLE)
                                                 component = null
+                                                // A selector could still target non-exported Essentials activities
+                                                selector = null
                                             }
                                             context.startActivity(intent)
                                         } catch (_: Exception) {}

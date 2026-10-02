@@ -97,11 +97,13 @@ class AppDetectionService : Service() {
                 addAction("CONSCIOUS_GATE_CLOSED")
                 addAction(Intent.ACTION_SCREEN_OFF)
             }
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            registerReceiver(authReceiver, filter, RECEIVER_EXPORTED)
-        } else {
-            registerReceiver(authReceiver, filter)
-        }
+        // App lock results come only from this app's own activities: other apps must not unlock apps
+        androidx.core.content.ContextCompat.registerReceiver(
+            this,
+            authReceiver,
+            filter,
+            androidx.core.content.ContextCompat.RECEIVER_NOT_EXPORTED,
+        )
     }
 
     override fun onStartCommand(

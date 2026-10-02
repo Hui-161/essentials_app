@@ -331,7 +331,7 @@
 
         <activity
             android:name=".ui.activities.LocationAlarmActivity"
-            android:exported="true"
+            android:exported="false"
             android:launchMode="singleInstance"
             android:theme="@style/Theme.Essentials.FullScreenAlarm" />
 
@@ -540,7 +540,7 @@
         <activity
             android:name=".ShutUpShortcutActivity"
             android:excludeFromRecents="true"
-            android:exported="true"
+            android:exported="false"
             android:noHistory="true"
             android:taskAffinity=""
             android:theme="@style/Theme.Essentials.Translucent" />
@@ -548,7 +548,7 @@
         <activity
             android:name=".ui.activities.FlashlightIntensityActivity"
             android:excludeFromRecents="true"
-            android:exported="true"
+            android:exported="false"
             android:noHistory="true"
             android:taskAffinity=""
             android:theme="@style/Theme.Essentials.Translucent" />
@@ -564,7 +564,7 @@
         <activity
             android:name=".ui.activities.SmartPixelsIntensityActivity"
             android:excludeFromRecents="true"
-            android:exported="true"
+            android:exported="false"
             android:noHistory="true"
             android:taskAffinity=""
             android:theme="@style/Theme.Essentials.Translucent" />
@@ -572,7 +572,7 @@
         <activity
             android:name=".ui.activities.PrivateDnsSettingsActivity"
             android:excludeFromRecents="true"
-            android:exported="true"
+            android:exported="false"
             android:noHistory="true"
             android:taskAffinity=""
             android:theme="@style/Theme.Essentials.Translucent" />
@@ -580,7 +580,7 @@
         <activity
             android:name=".ui.activities.DebuggingSettingsActivity"
             android:excludeFromRecents="true"
-            android:exported="true"
+            android:exported="false"
             android:noHistory="true"
             android:taskAffinity=""
             android:theme="@style/Theme.Essentials.Translucent" />
@@ -588,7 +588,7 @@
         <activity
             android:name=".ui.activities.BatteryDetailsActivity"
             android:excludeFromRecents="true"
-            android:exported="true"
+            android:exported="false"
             android:noHistory="true"
             android:taskAffinity=""
             android:theme="@style/Theme.Essentials.Translucent" />

@@ -423,7 +423,8 @@ class ScreenOffAccessibilityService :
                 addAction(FlashlightActionReceiver.ACTION_INCREASE)
                 addAction(FlashlightActionReceiver.ACTION_DECREASE)
             }
-        registerReceiver(screenReceiver, filter, RECEIVER_EXPORTED)
+        // System screen events and this app's own actions only: other apps must not trigger remaps or unlock gates
+        ContextCompat.registerReceiver(this, screenReceiver, filter, ContextCompat.RECEIVER_NOT_EXPORTED)
 
         getSharedPreferences("essentials_prefs", MODE_PRIVATE)
             .registerOnSharedPreferenceChangeListener(preferenceChangeListener)

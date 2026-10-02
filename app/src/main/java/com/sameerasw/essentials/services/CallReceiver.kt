@@ -31,9 +31,12 @@ class CallReceiver : BroadcastReceiver() {
 
         if (intent.action == Intent.ACTION_NEW_OUTGOING_CALL) {
             savedNumber = intent.getStringExtra(Intent.EXTRA_PHONE_NUMBER)
-            Log.d(TAG, "New outgoing call to: $savedNumber")
+            Log.d(TAG, "New outgoing call")
             return
         }
+
+        // The receiver is exported for the system: ignore explicit broadcasts from other apps faking a call
+        if (intent.action != TelephonyManager.ACTION_PHONE_STATE_CHANGED) return
 
         val stateStr = intent.getStringExtra(TelephonyManager.EXTRA_STATE)
         val incomingNumber = intent.getStringExtra(TelephonyManager.EXTRA_INCOMING_NUMBER)
