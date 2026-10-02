@@ -27,6 +27,7 @@ class LocationAlarmExternalHandler : ExternalHandler {
     ): Cursor? {
         val repository = LocationReachedRepository(context)
         if (remainingPath == "list") {
+            // No coordinates: callers would learn saved places (e.g. home) without location permission
             val alarms = repository.getAlarms()
             val activeId = repository.getActiveAlarmId()
 
@@ -35,8 +36,6 @@ class LocationAlarmExternalHandler : ExternalHandler {
                     arrayOf(
                         "id",
                         "name",
-                        "latitude",
-                        "longitude",
                         "radius",
                         "isEnabled",
                         "isPaused",
@@ -51,8 +50,6 @@ class LocationAlarmExternalHandler : ExternalHandler {
                     arrayOf<Any?>(
                         alarm.id,
                         alarm.name,
-                        alarm.latitude,
-                        alarm.longitude,
                         alarm.radius,
                         if (alarm.isEnabled) 1 else 0,
                         if (alarm.isPaused) 1 else 0,

@@ -34,7 +34,7 @@ class ExternalActionReceiver : BroadcastReceiver() {
 
         Log.d(
             "ExternalActionReceiver",
-            "Received external control request: path=$path, action=$action, value=$value",
+            "Received external control request: path=$path, action=$action",
         )
 
         if (action == "update") {
