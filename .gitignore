@@ -44,7 +44,9 @@ sentry.properties
 
 
 
-.claude/
+# Local Claude Code state stays private; project skills are shared
+.claude/*
+!.claude/skills/
 
 .DS_Store
 # Signing keys (release key via CI secrets or local keystore.properties, never committed)
