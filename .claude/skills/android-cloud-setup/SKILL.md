@@ -1,6 +1,6 @@
 ---
 name: android-cloud-setup
-description: Set up the Android SDK and Gradle in a Claude Code cloud container (no Android Studio, proxied network) so an Android app can be built and unit-tested. Use at the start of a session when `./gradlew` fails with "SDK location not found", when sdkmanager/platforms are missing, when Maven Central answers 429, when the Gradle distribution, a JitPack dependency or the daemon JDK ("Unable to download toolchain", foojay) cannot be downloaded, or when the user asks to build or test the app here. German triggers: "Android SDK einrichten", "kannst du die App bauen".
+description: Set up the Android SDK and Gradle in a Claude Code cloud container (no Android Studio, proxied network) so an Android app can be built and unit-tested. Use at the start of a session when `./gradlew` fails with "SDK location not found", when sdkmanager/platforms are missing, when Maven Central answers 429, when the Gradle distribution, a JitPack dependency or the daemon JDK ("Unable to download toolchain", foojay) cannot be downloaded, or when the user asks to build or test the app here. German triggers are "Android SDK einrichten", "kannst du die App bauen".
 ---
 
 # Android SDK in a cloud container

@@ -1,6 +1,6 @@
 ---
 name: android-security-review
-description: Review an Android app that holds powerful permissions (accessibility service, notification listener, IME, Shizuku/root shell, WRITE_SECURE_SETTINGS, device admin, install packages) for security and privacy problems, fix them and document the result. Use when the user asks to check an app or a fork "auf Sicherheit", before self-releasing someone else's app, when reviewing upstream merges, or when adding exported components, shell commands, network calls or telemetry. German triggers: "Sicherheitsprüfung", "prüfe aus Sicherheitsbedenken", "ist die App sicher".
+description: Review an Android app that holds powerful permissions (accessibility service, notification listener, IME, Shizuku/root shell, WRITE_SECURE_SETTINGS, device admin, install packages) for security and privacy problems, fix them and document the result. Use when the user asks to check an app or a fork "auf Sicherheit", before self-releasing someone else's app, when reviewing upstream merges, or when adding exported components, shell commands, network calls or telemetry. German triggers are "Sicherheitsprüfung", "prüfe aus Sicherheitsbedenken", "ist die App sicher".
 ---
 
 # Security review of a privileged Android app
