@@ -688,10 +688,6 @@
             android:multiprocess="false"
             android:permission="android.permission.INTERACT_ACROSS_USERS_FULL" />
 
-        <receiver
-            android:name="moe.shizuku.api.SystemServiceHelper$Receiver"
-            android:exported="true" />
-
         <service
             android:name=".services.InputEventListenerService"
             android:exported="false"
