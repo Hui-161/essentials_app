@@ -16,9 +16,64 @@ import android.content.pm.ShortcutManager
 import android.graphics.drawable.Icon
 import android.os.Build
 import com.sameerasw.essentials.ShortcutHandlerActivity
+import com.sameerasw.essentials.data.repository.SettingsRepository
 import com.sameerasw.essentials.domain.model.NotificationApp
 
 object ShortcutUtil {
+    const val EXTRA_PACKAGE_NAME = "package_name"
+    const val EXTRA_SHORTCUT_TOKEN = "shortcut_token"
+
+    /** Intent of a pinned "open frozen app" shortcut. */
+    private fun appShortcutIntent(
+        context: Context,
+        packageName: String,
+    ): Intent =
+        Intent(context, ShortcutHandlerActivity::class.java).apply {
+            action = Intent.ACTION_VIEW
+            putExtra(EXTRA_PACKAGE_NAME, packageName)
+            putExtra(EXTRA_SHORTCUT_TOKEN, SettingsRepository(context).getShortcutToken())
+            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
+        }
+
+    /** True if [token] is the one this installation puts into its own pinned shortcuts. */
+    fun isValidShortcutToken(
+        context: Context,
+        token: String?,
+    ): Boolean {
+        if (token.isNullOrEmpty()) return false
+        val expected = SettingsRepository(context).getShortcutToken()
+        return java.security.MessageDigest.isEqual(token.toByteArray(), expected.toByteArray())
+    }
+
+    /**
+     * Gives pinned "open frozen app" shortcuts created before the token existed (or with another
+     * token) the current one. Only the intent changes; label and icon stay.
+     */
+    fun refreshPinnedAppShortcuts(context: Context) {
+        try {
+            val shortcutManager = context.getSystemService(ShortcutManager::class.java) ?: return
+            val token = SettingsRepository(context).getShortcutToken()
+            val outdated =
+                shortcutManager.pinnedShortcuts.filter { info ->
+                    val intent = info.intent ?: return@filter false
+                    intent.component?.className == ShortcutHandlerActivity::class.java.name &&
+                        intent.getStringExtra(EXTRA_SHORTCUT_TOKEN) != token
+                }
+            if (outdated.isEmpty()) return
+            val updated =
+                outdated.mapNotNull { info ->
+                    val packageName = info.intent?.getStringExtra(EXTRA_PACKAGE_NAME) ?: return@mapNotNull null
+                    ShortcutInfo
+                        .Builder(context, info.id)
+                        .setIntent(appShortcutIntent(context, packageName))
+                        .build()
+                }
+            shortcutManager.updateShortcuts(updated)
+        } catch (e: Exception) {
+            android.util.Log.w("ShortcutUtil", "Could not refresh pinned shortcuts", e)
+        }
+    }
+
     /**
      * Executes the pin app shortcut operation.
      *
@@ -33,14 +88,7 @@ object ShortcutUtil {
             val shortcutManager = context.getSystemService(ShortcutManager::class.java)
 
             if (shortcutManager != null && shortcutManager.isRequestPinShortcutSupported) {
-                val intent =
-                    Intent(context, ShortcutHandlerActivity::class.java).apply {
-                        action = Intent.ACTION_VIEW
-                        putExtra("package_name", app.packageName)
-                        // Ensure each shortcut has a unique ID/intent filter if needed,
-                        // though ShortcutInfo ID handles uniqueness.
-                        addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
-                    }
+                val intent = appShortcutIntent(context, app.packageName)
 
                 val shortcut =
                     ShortcutInfo

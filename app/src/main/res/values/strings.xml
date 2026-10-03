@@ -3070,5 +3070,6 @@
     <string name="whats_new_feature_tags_title">New: Feature tags and what they mean</string>
     <string name="shorten_destination_hint">The link is sent to %1$s to create the short link.</string>
     <string name="shorten_domain_https_required">The shortener domain must be an https:// address.</string>
+    <string name="shortcut_outdated">This shortcut was updated. Tap it again.</string>
 </resources>
 

@@ -152,6 +152,7 @@ class SettingsRepository(
     companion object {
         const val PREFS_NAME = "essentials_prefs"
         const val SECRETS_PREFS_NAME = "essentials_secrets"
+        const val KEY_SHORTCUT_TOKEN = "shortcut_token"
 
         // Once per process; internal so tests can run the migration again
         @Volatile
@@ -163,6 +164,7 @@ class SettingsRepository(
                 key == KEY_GITHUB_WORKFLOW_TOKEN ||
                 key == KEY_SHIZUKU_AUTH_TOKEN ||
                 key == KEY_UNSPLASH_ACCESS_KEY ||
+                key == KEY_SHORTCUT_TOKEN ||
                 key.startsWith(LEGACY_WEATHER_API_KEY_PREFIX)
 
         // Keys
@@ -705,6 +707,19 @@ class SettingsRepository(
         const val KEY_SIM_NAMES_APPLY_ON_BOOT = "sim_names_apply_on_boot"
         const val KEY_POWER_SAVING_APPLY_ON_BOOT = "power_saving_apply_on_boot"
         const val KEY_UNSPLASH_ACCESS_KEY = "unsplash_access_key"
+    }
+
+    /**
+     * Random secret carried by the app's pinned shortcuts. Shortcut targets have to be exported for
+     * the launcher, so the token is what tells them apart from intents sent by other apps.
+     */
+    @Synchronized
+    fun getShortcutToken(): String {
+        secrets.getString(KEY_SHORTCUT_TOKEN, null)?.let { return it }
+        val bytes = ByteArray(16).also { java.security.SecureRandom().nextBytes(it) }
+        val token = bytes.joinToString("") { "%02x".format(it) }
+        secrets.edit().putString(KEY_SHORTCUT_TOKEN, token).commit()
+        return token
     }
 
     fun getUnsplashAccessKey(): String? = secrets.getString(KEY_UNSPLASH_ACCESS_KEY, null)

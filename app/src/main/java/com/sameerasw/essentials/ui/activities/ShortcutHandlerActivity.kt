@@ -26,6 +26,7 @@ import androidx.compose.ui.draw.scale
 import com.sameerasw.essentials.ui.activities.AppFreezingActivity
 import com.sameerasw.essentials.ui.theme.EssentialsTheme
 import com.sameerasw.essentials.utils.FreezeManager
+import com.sameerasw.essentials.utils.ShortcutUtil
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
@@ -46,7 +47,18 @@ class ShortcutHandlerActivity : ComponentActivity() {
             return
         }
 
-        val packageName = intent.getStringExtra("package_name")
+        val packageName = intent.getStringExtra(ShortcutUtil.EXTRA_PACKAGE_NAME)
+
+        // Exported for the launcher's shortcut picker: other apps could otherwise unfreeze and start
+        // any frozen app. Only the app's own pinned shortcuts carry the token.
+        if (packageName != null &&
+            !ShortcutUtil.isValidShortcutToken(this, intent.getStringExtra(ShortcutUtil.EXTRA_SHORTCUT_TOKEN))
+        ) {
+            ShortcutUtil.refreshPinnedAppShortcuts(this)
+            Toast.makeText(this, R.string.shortcut_outdated, Toast.LENGTH_SHORT).show()
+            finish()
+            return
+        }
 
         if (packageName != null) {
             setContent {

@@ -1871,4 +1871,5 @@ Zugriff auf die Barrierefreiheit ist erforderlich, um die Überlagerung zu zeich
     <string name="import_config_own_files_hint">Importiere nur Konfigurationsdateien, die du selbst erstellt hast.</string>
     <string name="shorten_destination_hint">Der Link wird an %1$s gesendet, um den Kurzlink zu erstellen.</string>
     <string name="shorten_domain_https_required">Die Shortener-Domain muss eine https://-Adresse sein.</string>
+    <string name="shortcut_outdated">Diese Verknüpfung wurde aktualisiert. Tippe sie erneut an.</string>
 </resources>

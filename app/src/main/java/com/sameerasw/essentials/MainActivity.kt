@@ -122,6 +122,8 @@ class MainActivity : AppCompatActivity() {
         enableEdgeToEdge()
         com.sameerasw.essentials.utils.ShortcutUtil
             .updateLauncherDynamicShortcuts(this)
+        com.sameerasw.essentials.utils.ShortcutUtil
+            .refreshPinnedAppShortcuts(this)
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
             window.isNavigationBarContrastEnforced = false

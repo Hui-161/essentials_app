@@ -23,8 +23,9 @@ class ActionShortcutActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
 
         DIYRepository.init(applicationContext)
+        // Reached only through the launcher alias, which is enabled only while such an automation is on
         val automation =
-            DIYRepository.automations.value.find { it.type == Automation.Type.ACTION_SHORTCUT }
+            DIYRepository.automations.value.find { it.type == Automation.Type.ACTION_SHORTCUT && it.isEnabled }
 
         if (automation != null && automation.actions.isNotEmpty()) {
             lifecycleScope.launch {

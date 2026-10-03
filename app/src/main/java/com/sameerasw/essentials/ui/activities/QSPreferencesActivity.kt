@@ -34,9 +34,16 @@ class QSPreferencesActivity : ComponentActivity() {
 
         Log.d("QSPreferences", "Received long-press for: ${componentName?.className}")
 
-        if (componentName != null) {
+        // Only this app's own tiles; anything else is not a tile long-press
+        if (componentName != null && componentName.packageName == packageName) {
             if (componentName.className == "com.sameerasw.essentials.services.tiles.LockdownTileService") {
-                DeviceLockUtils.performLockdownTileAction(this, isLongPress = true)
+                // The only branch that acts instead of opening a screen: other apps can send this
+                // intent too, so lock only when System UI launched it
+                if (isLaunchedBySystem()) {
+                    DeviceLockUtils.performLockdownTileAction(this, isLongPress = true)
+                } else {
+                    Log.w("QSPreferences", "Lockdown long-press ignored: not launched by the system")
+                }
                 finish()
                 return
             }
@@ -198,6 +205,20 @@ class QSPreferencesActivity : ComponentActivity() {
         }
 
         finish()
+    }
+
+    /**
+     * True if a system app (System UI) started this activity. A caller-supplied referrer is not
+     * trusted; without one, the referrer is the package Android recorded for the launch.
+     */
+    private fun isLaunchedBySystem(): Boolean {
+        if (intent.hasExtra(Intent.EXTRA_REFERRER) || intent.hasExtra(Intent.EXTRA_REFERRER_NAME)) return false
+        val launcher = referrer?.takeIf { it.scheme == "android-app" }?.host ?: return false
+        return try {
+            packageManager.getApplicationInfo(launcher, 0).flags and android.content.pm.ApplicationInfo.FLAG_SYSTEM != 0
+        } catch (e: Exception) {
+            false
+        }
     }
 
     private fun openHapticsSettings() {
