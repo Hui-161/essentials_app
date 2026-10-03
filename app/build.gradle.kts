@@ -126,6 +126,12 @@ android {
         sourceCompatibility = JavaVersion.VERSION_21
         targetCompatibility = JavaVersion.VERSION_21
     }
+    testOptions {
+        unitTests.all {
+            // Robolectric (SDK 35+) reaches into FileDescriptor internals, which JDK 17+ hides
+            it.jvmArgs("--add-opens=java.base/jdk.internal.access=ALL-UNNAMED")
+        }
+    }
     buildFeatures {
         compose = true
         buildConfig = true
@@ -172,6 +178,8 @@ dependencies {
     implementation(libs.androidx.foundation.layout)
     implementation(libs.androidx.foundation)
     testImplementation(libs.junit)
+    testImplementation(libs.robolectric)
+    testImplementation(libs.androidx.test.core)
     androidTestImplementation(libs.androidx.junit)
     androidTestImplementation(platform(libs.androidx.compose.bom))
     androidTestImplementation(libs.androidx.compose.ui.test.junit4)
