@@ -1,8 +1,9 @@
 # Claude Code skills for this repository
 
 Project skills Claude Code loads automatically in sessions on this repo (`.claude/skills/*/SKILL.md`).
-They capture what was needed to develop, build and ship Android apps from a cloud session
-(started in Hui-161/Smart-Edge, extended while hardening and releasing this Essentials fork).
+They capture what was needed to develop, build, secure and ship Android apps from cloud sessions.
+Hui-161/Smart-Edge and Hui-161/essentials_app keep identical copies: after improving a skill in one
+repository, copy `.claude/skills/` to the other.
 
 | Skill | Purpose |
 |---|---|
