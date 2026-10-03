@@ -91,7 +91,7 @@ class WallpaperRepository {
         withContext(Dispatchers.IO) {
             try {
                 val bitmap = downloadBitmap(urlString) ?: return@withContext false
-                val cacheFile = File(context.cacheDir, "today_wallpaper.jpg")
+                val cacheFile = File(File(context.cacheDir, "shared_wallpaper").apply { mkdirs() }, "today_wallpaper.jpg")
                 FileOutputStream(cacheFile).use { out ->
                     bitmap.compress(Bitmap.CompressFormat.JPEG, 100, out)
                 }

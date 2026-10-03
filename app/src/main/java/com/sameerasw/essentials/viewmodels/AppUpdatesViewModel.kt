@@ -622,9 +622,9 @@ class AppUpdatesViewModel : ViewModel() {
 
         viewModelScope.launch(Dispatchers.IO) {
             try {
-                // Use external cache dir if possible for better accessibility by shell/shizuku
-                val cacheDir = context.externalCacheDir ?: context.cacheDir
-                val file = File(cacheDir, "${repo.name}.apk")
+                // Internal cache: on shared storage another app could swap the APK before it is installed
+                val cacheDir = File(context.cacheDir, "apk_downloads")
+                val file = File(cacheDir, "${repo.name.replace(Regex("[^A-Za-z0-9._-]"), "_")}.apk")
 
                 // Ensure parent exists
                 file.parentFile?.mkdirs()
