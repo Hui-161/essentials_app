@@ -2373,6 +2373,13 @@
     <string name="import_config_merge_warning">Merging might cause data corruption. Please proceed with caution!</string>
     <string name="action_override">Override</string>
     <string name="action_merge">Merge</string>
+    <string name="import_config_invalid">Not a valid Essentials configuration file</string>
+    <string name="import_config_auth_subtitle">Confirm your identity to restore the configuration</string>
+    <string name="export_config_auth_subtitle">Confirm your identity to export your settings</string>
+    <string name="import_config_summary">This file contains %1$d settings.</string>
+    <string name="import_config_protection_changes">Changes security settings: %1$s</string>
+    <string name="import_config_privileged_automations">%1$d of %2$d automations change system settings or other apps: %3$s</string>
+    <string name="import_config_own_files_hint">Only import configuration files you created yourself.</string>
     <string name="label_wallpaper_last_checked">Last checked at %1$s</string>
     <string name="label_wallpaper_next_check">Next check in %1$s</string>
     <string name="label_wallpaper_hours">%1$d hours</string>

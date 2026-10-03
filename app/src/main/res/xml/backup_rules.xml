@@ -1,9 +1,10 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
    Auto Backup for Android 11 and lower (Android 12+ uses data_extraction_rules.xml).
-   Typed words of the keyboard and crash logs stay on the device.
+   Credentials, typed words of the keyboard and crash logs stay on the device.
 -->
 <full-backup-content>
+    <exclude domain="sharedpref" path="essentials_secrets.xml" />
     <exclude domain="file" path="user_dict.txt" />
     <exclude domain="file" path="last_crash.log" />
     <exclude domain="file" path="crash_reports" />

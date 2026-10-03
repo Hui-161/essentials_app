@@ -1,6 +1,6 @@
 # Sicherheitsprüfung des Essentials-Forks
 
-Stand: 2026-10-02, Basis `sameerasw/essentials` main `8294f0e` (Version 18.5-beta.1).
+Stand: 2026-10-03 (Prüfung 2026-10-02), Basis `sameerasw/essentials` main `8294f0e` (Version 18.5-beta.1).
 Methode: statische Codeprüfung (Manifest, ~630 Kotlin-Dateien, Build, CI). Kein Gerätetest,
 keine dynamische Analyse. Die Ergebnisse sind Vorschläge und müssen fachlich geprüft werden.
 Die Korrekturen vor dem produktiven Einsatz auf einem Testgerät prüfen.
@@ -39,8 +39,8 @@ Gradle 9.5.0.
 | 14 | niedrig | Root-Prüfung und Root-Befehle ohne Timeout (blockieren bei einer Root-Manager-Abfrage). | behoben |
 | 15 | niedrig | `CallReceiver` nahm gefälschte Anruf-Broadcasts an (falscher Anruf in Island und auf der Uhr). | behoben |
 | 16 | niedrig | Standort-Alarm-Liste der Schnittstelle gab Koordinaten gespeicherter Orte heraus. | behoben |
-| 17 | mittel | Tokens (GitHub, Shizuku, Unsplash) im Klartext in `essentials_prefs`, damit auch im Cloud-Backup (dort Ende-zu-Ende-verschlüsselt ab Android 9 mit Bildschirmsperre). | offen: Auslagerung in eine eigene, vom Backup ausgeschlossene Datei |
-| 18 | mittel | Import von Einstellungen ohne Biometrie und Allowlist: Eine fremde Datei kann App Lock abschalten und Automationen einspielen (Shell-Werte sind jetzt abgesichert). | offen: Biometrie vor Import, Allowlist |
+| 17 | mittel | Tokens (GitHub, Shizuku, Unsplash) im Klartext in `essentials_prefs`, damit auch im Cloud-Backup (dort Ende-zu-Ende-verschlüsselt ab Android 9 mit Bildschirmsperre). | behoben: eigene Datei `essentials_secrets` (Migration beim Start), von Backup und Gerätetransfer ausgeschlossen, nie exportiert, für `EXTERNAL_CONTROL` nicht erreichbar |
+| 18 | hoch | Import von Einstellungen ohne Biometrie und Allowlist: Eine fremde Datei konnte beliebige Prefs-Dateien schreiben, App Lock abschalten, Automationen einspielen und über `shut_up_original_settings` beim nächsten Wiederherstellen eine fremde Bedienungshilfe in `Settings.Secure` eintragen; falsche Werttypen führten zu Abstürzen beim Lesen. | behoben: Biometrie/Gerätesperre vor Import und Export, nur die fünf exportierten Dateien, Geräte-Zustand und Zugangsdaten nie importiert, Typprüfung, Größenlimit 5 MB, Vorschau mit geänderten Sicherheitseinstellungen und Automationen mit Systemaktionen; beim Ersetzen bleiben nicht enthaltene Sicherheitseinstellungen erhalten |
 | 19 | mittel | Link-Picker ruft jeden Link vorab ab, auch wenn die Vorschau aus ist (User-Agent `facebookexternalhit`); Favicons über Google. | offen (Online-Inhalte bewusst unverändert) |
 | 20 | mittel | Online-Inhalte von Servern des Original-Autors: Hilfe-Videos, Projekt-Infos, Tages-Hintergrund, Übersetzungsmodus (GitHub-Login mit dessen OAuth-App, Kommentare in dessen Discussion). | offen (bewusst unverändert) |
 | 21 | niedrig | URL-Kürzer-Kachel schickt die Zwischenablage ohne Rückfrage an `btl.dpdns.org`. | offen |

@@ -1862,4 +1862,11 @@ Zugriff auf die Barrierefreiheit ist erforderlich, um die Überlagerung zu zeich
     <string name="setting_show_legacy_features_title">Legacy-Funktionen anzeigen</string>
     <string name="setting_show_legacy_features_desc">Diese Funktionen erhalten möglicherweise keine zukünftigen Updates aufgrund technischer Einschränkungen oder weil sie nicht essentiell sind.</string>
     <string name="update_signature_mismatch">Das Update ist nicht wie diese App signiert und wurde nicht installiert</string>
+    <string name="import_config_invalid">Keine gültige Essentials-Konfigurationsdatei</string>
+    <string name="import_config_auth_subtitle">Bestätige deine Identität, um die Konfiguration wiederherzustellen</string>
+    <string name="export_config_auth_subtitle">Bestätige deine Identität, um deine Einstellungen zu exportieren</string>
+    <string name="import_config_summary">Diese Datei enthält %1$d Einstellungen.</string>
+    <string name="import_config_protection_changes">Ändert Sicherheitseinstellungen: %1$s</string>
+    <string name="import_config_privileged_automations">%1$d von %2$d Automationen ändern Systemeinstellungen oder andere Apps: %3$s</string>
+    <string name="import_config_own_files_hint">Importiere nur Konfigurationsdateien, die du selbst erstellt hast.</string>
 </resources>

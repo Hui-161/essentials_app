@@ -71,6 +71,9 @@ Releases gleich bleiben.
   *Einstellungen → Exportieren* nutzen, dann die Original-App deinstallieren, das APK aus dem
   Release installieren, Einstellungen importieren und Berechtigungen (Bedienungshilfe,
   Shizuku, Benachrichtigungszugriff …) neu erteilen. Nur selbst exportierte Dateien importieren.
+  Export und Import verlangen Fingerabdruck bzw. Gerätesperre; der Import zeigt vorher, welche
+  Sicherheitseinstellungen und Automationen mit Systemaktionen er ändert. Zugangsdaten
+  (GitHub-Login, Shizuku-Token) werden nicht übertragen und müssen neu eingerichtet werden.
 - **Updates:** In der App über *Nach Updates suchen* oder automatisch. Installiert werden nur
   Releases dieses Repositorys mit gleichem Signaturzertifikat.
 - **Debug-Builds** (Artefakt `essentials-debug-apk` unter *Actions* → Lauf → *Artifacts*) heißen

@@ -8673,12 +8673,18 @@ class MainViewModel : ViewModel() {
         settingsRepository.exportConfigs(outputStream)
     }
 
+    /** Reads a configuration file chosen for import; null if it is too large or unreadable. */
+    fun readConfigFile(inputStream: java.io.InputStream): String? = settingsRepository.readConfigFile(inputStream)
+
+    /** What importing [json] would change; null if it is not an exported configuration. */
+    fun previewConfigImport(json: String) = settingsRepository.previewConfigImport(json)
+
     fun importConfigs(
         context: Context,
-        inputStream: java.io.InputStream,
+        json: String,
         keepPrefs: Boolean,
     ): Boolean {
-        val success = settingsRepository.importConfigs(inputStream, keepPrefs)
+        val success = settingsRepository.importConfigJson(json, keepPrefs)
         if (success) {
             settingsRepository.syncSystemSettingsWithSaved()
             com.sameerasw.essentials.domain.diy.DIYRepository

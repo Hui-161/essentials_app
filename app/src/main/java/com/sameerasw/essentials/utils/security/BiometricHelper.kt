@@ -9,6 +9,7 @@
 
 package com.sameerasw.essentials.utils
 
+import android.app.KeyguardManager
 import android.os.Build
 import androidx.biometric.BiometricManager
 import androidx.biometric.BiometricPrompt
@@ -67,5 +68,23 @@ object BiometricHelper {
                 .build()
 
         biometricPrompt.authenticate(promptInfo)
+    }
+
+    /**
+     * Runs [action] after the user confirmed their identity (biometrics or screen lock). Without a
+     * secure screen lock there is nothing to confirm against, so [action] runs directly.
+     */
+    fun runAfterAuthentication(
+        activity: FragmentActivity,
+        title: String,
+        subtitle: String,
+        action: () -> Unit,
+    ) {
+        val keyguard = activity.getSystemService(KeyguardManager::class.java)
+        if (keyguard?.isDeviceSecure != true) {
+            action()
+            return
+        }
+        showBiometricPrompt(activity, title, subtitle, onSuccess = action)
     }
 }

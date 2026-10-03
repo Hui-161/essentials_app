@@ -38,12 +38,38 @@ class SettingsRepository(
 ) {
     private val prefs: SharedPreferences =
         context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+
+    // Credentials live apart from the settings: excluded from Auto Backup and device transfer,
+    // never exported, and out of reach of the external control provider (essentials_prefs only)
+    private val secrets: SharedPreferences =
+        context.getSharedPreferences(SECRETS_PREFS_NAME, Context.MODE_PRIVATE)
     private val gson = Gson()
 
     init {
+        migrateSecrets()
         migrateUsageAccessKey()
         migrateRemapStringToAction()
         migratePixelSearchbarType()
+    }
+
+    /** Moves credentials that older versions kept in [PREFS_NAME] into [SECRETS_PREFS_NAME]. */
+    private fun migrateSecrets() {
+        if (secretsMigrated) return
+        synchronized(SettingsRepository::class.java) {
+            if (secretsMigrated) return
+            val stored = prefs.all.filterKeys { isSecretKey(it) }
+            if (stored.isNotEmpty()) {
+                val editor = secrets.edit()
+                stored.forEach { (key, value) ->
+                    if (value is String && !secrets.contains(key)) editor.putString(key, value)
+                }
+                // Written synchronously, so a crash cannot lose a token that was just removed below
+                if (editor.commit()) {
+                    prefs.edit().apply { stored.keys.forEach { remove(it) } }.commit()
+                }
+            }
+            secretsMigrated = true
+        }
     }
 
     private fun migrateUsageAccessKey() {
@@ -125,6 +151,19 @@ class SettingsRepository(
 
     companion object {
         const val PREFS_NAME = "essentials_prefs"
+        const val SECRETS_PREFS_NAME = "essentials_secrets"
+
+        // Once per process; internal so tests can run the migration again
+        @Volatile
+        internal var secretsMigrated = false
+
+        /** Tokens and API keys: stored only in [SECRETS_PREFS_NAME], never exported or imported. */
+        fun isSecretKey(key: String): Boolean =
+            key == KEY_GITHUB_ACCESS_TOKEN ||
+                key == KEY_GITHUB_WORKFLOW_TOKEN ||
+                key == KEY_SHIZUKU_AUTH_TOKEN ||
+                key == KEY_UNSPLASH_ACCESS_KEY ||
+                key.startsWith(LEGACY_WEATHER_API_KEY_PREFIX)
 
         // Keys
         const val KEY_DEBUGGING_TILE_TAP_ACTION = "debugging_tile_tap_action"
@@ -668,13 +707,13 @@ class SettingsRepository(
         const val KEY_UNSPLASH_ACCESS_KEY = "unsplash_access_key"
     }
 
-    fun getUnsplashAccessKey(): String? = prefs.getString(KEY_UNSPLASH_ACCESS_KEY, null)
+    fun getUnsplashAccessKey(): String? = secrets.getString(KEY_UNSPLASH_ACCESS_KEY, null)
 
     fun setUnsplashAccessKey(key: String?) {
         if (key.isNullOrBlank()) {
-            prefs.edit().remove(KEY_UNSPLASH_ACCESS_KEY).apply()
+            secrets.edit().remove(KEY_UNSPLASH_ACCESS_KEY).apply()
         } else {
-            prefs.edit().putString(KEY_UNSPLASH_ACCESS_KEY, key.trim()).apply()
+            secrets.edit().putString(KEY_UNSPLASH_ACCESS_KEY, key.trim()).apply()
         }
     }
 
@@ -1611,39 +1650,17 @@ class SettingsRepository(
         putString(KEY_MAPS_DETECTION_CHANNELS, json)
     }
 
-    // Config Export/Import
+    // Config Export/Import (rules in ConfigImportPolicy)
     fun getAllConfigsAsJsonString(): String {
         return try {
             val allConfigs = mutableMapOf<String, Map<String, Map<String, Any>>>()
-            val prefFiles =
-                listOf(
-                    "essentials_prefs",
-                    "caffeinate_prefs",
-                    "link_prefs",
-                    "diy_automations_prefs",
-                    "live_wallpaper_prefs",
-                )
 
-            prefFiles.forEach { fileName ->
+            ConfigImportPolicy.PREF_FILES.forEach { fileName ->
                 val p = context.getSharedPreferences(fileName, Context.MODE_PRIVATE)
                 val wrapperMap = mutableMapOf<String, Map<String, Any>>()
 
                 p.all.forEach { (key, value) ->
-                    if (key == "freeze_auto_excluded_apps" || key.endsWith("_selected_apps")) {
-                    }
-                    if (key == KEY_GITHUB_ACCESS_TOKEN ||
-                        key == KEY_GITHUB_WORKFLOW_TOKEN ||
-                        key == KEY_SHIZUKU_AUTH_TOKEN ||
-                        key.startsWith(LEGACY_WEATHER_API_KEY_PREFIX) ||
-                        key.startsWith("mac_battery_") ||
-                        key == "airsync_mac_connected" ||
-                        key == KEY_SNOOZE_DISCOVERED_CHANNELS ||
-                        key == KEY_MAPS_DISCOVERED_CHANNELS ||
-                        key == KEY_SHUT_UP_ORIGINAL_SETTINGS ||
-                        key == "battery_history_points"
-                    ) {
-                        return@forEach
-                    }
+                    if (ConfigImportPolicy.isLocalOnly(key)) return@forEach
 
                     val type =
                         when (value) {
@@ -1685,6 +1702,67 @@ class SettingsRepository(
     }
 
     /**
+     * Reads an exported configuration, at most [ConfigImportPolicy.MAX_FILE_BYTES].
+     * @return The JSON text, or null if the file is too large or unreadable.
+     */
+    fun readConfigFile(inputStream: java.io.InputStream): String? =
+        try {
+            inputStream.use { stream ->
+                // InputStream.readNBytes needs API 33: read in chunks up to the limit
+                val out = java.io.ByteArrayOutputStream()
+                val buffer = ByteArray(64 * 1024)
+                while (out.size() <= ConfigImportPolicy.MAX_FILE_BYTES) {
+                    val read = stream.read(buffer)
+                    if (read < 0) break
+                    out.write(buffer, 0, read)
+                }
+                if (out.size() > ConfigImportPolicy.MAX_FILE_BYTES) null else out.toString(Charsets.UTF_8.name())
+            }
+        } catch (e: Exception) {
+            null
+        }
+
+    private fun parseConfig(json: String): Map<String, Map<String, Map<String, Any>>>? =
+        try {
+            val type = object : TypeToken<Map<String, Map<String, Map<String, Any>>>>() {}.type
+            gson.fromJson<Map<String, Map<String, Map<String, Any>>>>(json, type)
+        } catch (e: Exception) {
+            null
+        }
+
+    /**
+     * Describes what importing [json] would change: number of settings, protection settings
+     * whose value differs from this device, and automations with privileged actions.
+     * @return null if [json] is not an exported configuration.
+     */
+    fun previewConfigImport(json: String): ConfigImportPolicy.Preview? {
+        val allConfigs = parseConfig(json) ?: return null
+        val known = allConfigs.filterKeys { it in ConfigImportPolicy.PREF_FILES }
+        if (known.isEmpty()) return null
+
+        var count = 0
+        val changedProtection = mutableListOf<String>()
+        known.forEach { (fileName, wrapper) ->
+            val current = context.getSharedPreferences(fileName, Context.MODE_PRIVATE).all
+            wrapper.forEach { (key, item) ->
+                if (ConfigImportPolicy.isLocalOnly(key)) return@forEach
+                val value = ConfigImportPolicy.toPrefValue(item["type"] as? String, item["value"]) ?: return@forEach
+                if (!ConfigImportPolicy.isCompatible(current[key], value)) return@forEach
+                count++
+                if (fileName == PREFS_NAME &&
+                    key in ConfigImportPolicy.PROTECTION_KEYS &&
+                    ConfigImportPolicy.isProtectionChange(current[key], value)
+                ) {
+                    changedProtection += key
+                }
+            }
+        }
+        val automationsItem = known[ConfigImportPolicy.AUTOMATIONS_FILE]?.get(ConfigImportPolicy.AUTOMATIONS_KEY)
+        val automations = ConfigImportPolicy.summarizeAutomations(automationsItem?.get("value") as? String)
+        return ConfigImportPolicy.Preview(count, changedProtection, automations)
+    }
+
+    /**
      * Executes the import configs operation.
      *
      * @param inputStream [java.io.InputStream] Target input stream.
@@ -1694,87 +1772,45 @@ class SettingsRepository(
     fun importConfigs(
         inputStream: java.io.InputStream,
         keepPrefs: Boolean,
+    ): Boolean = readConfigFile(inputStream)?.let { importConfigJson(it, keepPrefs) } ?: false
+
+    /**
+     * Imports an exported configuration. Only [ConfigImportPolicy.PREF_FILES] are written, local-only
+     * keys (credentials, recorded device state) are kept as they are, and values whose type differs
+     * from the stored one are skipped. When replacing ([keepPrefs] = false), protection settings that
+     * the file does not contain keep their current value instead of falling back to defaults.
+     */
+    fun importConfigJson(
+        json: String,
+        keepPrefs: Boolean,
     ): Boolean {
+        val allConfigs = parseConfig(json) ?: return false
         return try {
-            val json = inputStream.bufferedReader().use { it.readText() }
-            val type = object : TypeToken<Map<String, Map<String, Map<String, Any>>>>() {}.type
-            val allConfigs: Map<String, Map<String, Map<String, Any>>> =
-                gson.fromJson(json, type) ?: emptyMap()
-
             allConfigs.forEach { (fileName, prefWrapper) ->
+                if (fileName !in ConfigImportPolicy.PREF_FILES) return@forEach
                 val p = context.getSharedPreferences(fileName, Context.MODE_PRIVATE)
+                val current = p.all
 
-                // Preserve sensitive or volatile local state not present in backups
-                val preservedValues = mutableMapOf<String, Any?>()
-                val keysToPreserve =
-                    listOf(
-                        KEY_GITHUB_ACCESS_TOKEN,
-                        KEY_GITHUB_WORKFLOW_TOKEN,
-                        KEY_SHIZUKU_AUTH_TOKEN,
-                        LEGACY_WEATHER_API_KEY_PREFIX,
-                        "airsync_mac_connected",
-                        KEY_SNOOZE_DISCOVERED_CHANNELS,
-                        KEY_MAPS_DISCOVERED_CHANNELS,
-                        KEY_SHUT_UP_ORIGINAL_SETTINGS,
-                    )
-                val macBatteryKeys = p.all.keys.filter { it.startsWith("mac_battery_") }
-                (keysToPreserve + macBatteryKeys).forEach { key ->
-                    if (p.contains(key)) {
-                        preservedValues[key] = p.all[key]
+                // Kept when replacing: local-only state, and protection settings the file leaves out
+                val preserved =
+                    current.filterKeys { key ->
+                        ConfigImportPolicy.isLocalOnly(key) ||
+                            (key in ConfigImportPolicy.PROTECTION_KEYS && key !in prefWrapper)
                     }
-                }
 
                 p
                     .edit()
                     .apply {
-                        if (!keepPrefs) clear()
-
-                        // Restore preserved values
-                        preservedValues.forEach { (key, value) ->
-                            if (value != null) {
-                                when (value) {
-                                    is Boolean -> putBoolean(key, value)
-                                    is Int -> putInt(key, value)
-                                    is Long -> putLong(key, value)
-                                    is Float -> putFloat(key, value)
-                                    is String -> putString(key, value)
-                                    is Set<*> -> {
-                                        @Suppress("UNCHECKED_CAST")
-                                        putStringSet(key, value as Set<String>)
-                                    }
-                                }
-                            }
+                        if (!keepPrefs) {
+                            clear()
+                            preserved.forEach { (key, value) -> putValue(key, value) }
                         }
 
                         prefWrapper.forEach { (key, item) ->
-                            // Do not import sensitive keys from the file even if they exist there
-                            if (key == KEY_GITHUB_ACCESS_TOKEN ||
-                                key == KEY_GITHUB_WORKFLOW_TOKEN ||
-                                key == KEY_SHIZUKU_AUTH_TOKEN ||
-                                key.startsWith(LEGACY_WEATHER_API_KEY_PREFIX)
-                            ) {
-                                return@forEach
-                            }
-                            val itemType = item["type"] as? String
-                            val itemValue = item["value"]
-
-                            if (itemType != null && itemValue != null) {
-                                try {
-                                    when (itemType) {
-                                        "Boolean" -> putBoolean(key, itemValue as Boolean)
-                                        "Int" -> putInt(key, (itemValue as Double).toInt())
-                                        "Long" -> putLong(key, (itemValue as Double).toLong())
-                                        "Float" -> putFloat(key, (itemValue as Double).toFloat())
-                                        "String" -> putString(key, itemValue as String)
-                                        "StringSet" -> {
-                                            @Suppress("UNCHECKED_CAST")
-                                            putStringSet(key, (itemValue as List<String>).toSet())
-                                        }
-                                    }
-                                } catch (e: Exception) {
-                                    e.printStackTrace()
-                                }
-                            }
+                            if (ConfigImportPolicy.isLocalOnly(key)) return@forEach
+                            val value = ConfigImportPolicy.toPrefValue(item["type"] as? String, item["value"]) ?: return@forEach
+                            if (!ConfigImportPolicy.isCompatible(current[key], value)) return@forEach
+                            putValue(key, value)
                         }
                     }.apply()
             }
@@ -1782,11 +1818,20 @@ class SettingsRepository(
         } catch (e: Exception) {
             e.printStackTrace()
             false
-        } finally {
-            try {
-                inputStream.close()
-            } catch (e: Exception) {
-            }
+        }
+    }
+
+    private fun SharedPreferences.Editor.putValue(
+        key: String,
+        value: Any?,
+    ) {
+        when (value) {
+            is Boolean -> putBoolean(key, value)
+            is Int -> putInt(key, value)
+            is Long -> putLong(key, value)
+            is Float -> putFloat(key, value)
+            is String -> putString(key, value)
+            is Set<*> -> putStringSet(key, value.filterIsInstance<String>().toSet())
         }
     }
 
@@ -2030,14 +2075,14 @@ class SettingsRepository(
      * Executes the get shizuku auth token operation.
      * @return The resulting String data.
      */
-    fun getShizukuAuthToken(): String = prefs.getString(KEY_SHIZUKU_AUTH_TOKEN, "") ?: ""
+    fun getShizukuAuthToken(): String = secrets.getString(KEY_SHIZUKU_AUTH_TOKEN, "") ?: ""
 
     /**
      * Executes the set shizuku auth token operation.
      *
      * @param token [String] Target token.
      */
-    fun setShizukuAuthToken(token: String) = putString(KEY_SHIZUKU_AUTH_TOKEN, token)
+    fun setShizukuAuthToken(token: String) = secrets.edit().putString(KEY_SHIZUKU_AUTH_TOKEN, token).apply()
 
     /**
      * Executes the get pixel searchbar type operation.
@@ -2277,7 +2322,7 @@ class SettingsRepository(
      * Executes the get git hub token operation.
      * @return The resulting String? data.
      */
-    fun getGitHubToken(): String? = prefs.getString(KEY_GITHUB_ACCESS_TOKEN, null)
+    fun getGitHubToken(): String? = secrets.getString(KEY_GITHUB_ACCESS_TOKEN, null)
 
     /**
      * Executes the save git hub token operation.
@@ -2285,7 +2330,7 @@ class SettingsRepository(
      * @param token [String?] Target token.
      */
     fun saveGitHubToken(token: String?) {
-        prefs.edit().putString(KEY_GITHUB_ACCESS_TOKEN, token).apply()
+        secrets.edit().putString(KEY_GITHUB_ACCESS_TOKEN, token).apply()
     }
 
     // observe token changes
@@ -2294,19 +2339,19 @@ class SettingsRepository(
             val listener =
                 SharedPreferences.OnSharedPreferenceChangeListener { _, key ->
                     if (key == KEY_GITHUB_ACCESS_TOKEN) {
-                        trySend(getString(KEY_GITHUB_ACCESS_TOKEN))
+                        trySend(getGitHubToken())
                     }
                 }
-            trySend(getString(KEY_GITHUB_ACCESS_TOKEN))
-            prefs.registerOnSharedPreferenceChangeListener(listener)
-            awaitClose { prefs.unregisterOnSharedPreferenceChangeListener(listener) }
+            trySend(getGitHubToken())
+            secrets.registerOnSharedPreferenceChangeListener(listener)
+            awaitClose { secrets.unregisterOnSharedPreferenceChangeListener(listener) }
         }
 
     /**
      * Executes the get git hub workflow token operation.
      * @return The resulting String? data.
      */
-    fun getGitHubWorkflowToken(): String? = prefs.getString(KEY_GITHUB_WORKFLOW_TOKEN, null)
+    fun getGitHubWorkflowToken(): String? = secrets.getString(KEY_GITHUB_WORKFLOW_TOKEN, null)
 
     /**
      * Executes the save git hub workflow token operation.
@@ -2314,7 +2359,7 @@ class SettingsRepository(
      * @param token [String?] Target token.
      */
     fun saveGitHubWorkflowToken(token: String?) {
-        prefs.edit().putString(KEY_GITHUB_WORKFLOW_TOKEN, token).apply()
+        secrets.edit().putString(KEY_GITHUB_WORKFLOW_TOKEN, token).apply()
     }
 
     val gitHubWorkflowToken: Flow<String?> =
@@ -2322,12 +2367,12 @@ class SettingsRepository(
             val listener =
                 SharedPreferences.OnSharedPreferenceChangeListener { _, key ->
                     if (key == KEY_GITHUB_WORKFLOW_TOKEN) {
-                        trySend(getString(KEY_GITHUB_WORKFLOW_TOKEN))
+                        trySend(getGitHubWorkflowToken())
                     }
                 }
-            trySend(getString(KEY_GITHUB_WORKFLOW_TOKEN))
-            prefs.registerOnSharedPreferenceChangeListener(listener)
-            awaitClose { prefs.unregisterOnSharedPreferenceChangeListener(listener) }
+            trySend(getGitHubWorkflowToken())
+            secrets.registerOnSharedPreferenceChangeListener(listener)
+            awaitClose { secrets.unregisterOnSharedPreferenceChangeListener(listener) }
         }
 
     /**

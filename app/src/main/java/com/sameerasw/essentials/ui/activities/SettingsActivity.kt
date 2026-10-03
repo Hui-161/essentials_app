@@ -9,6 +9,7 @@
 
 package com.sameerasw.essentials
 
+import com.sameerasw.essentials.data.repository.ConfigImportPolicy
 import com.sameerasw.essentials.data.repository.SettingsRepository
 import com.sameerasw.essentials.ui.activities.WallpaperStagingActivity
 import com.sameerasw.essentials.ui.core.cards.ConfigPickerItem
@@ -22,6 +23,7 @@ import android.os.Build
 import android.os.Bundle
 import android.provider.Settings
 import android.widget.Toast
+import com.sameerasw.essentials.utils.BiometricHelper
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
@@ -353,7 +355,8 @@ fun SettingsContent(
     var showPreReleaseConfirmSheet by remember { mutableStateOf(false) }
     var pendingPreReleaseState by remember { mutableStateOf(false) }
     var showImportConfirmSheet by remember { mutableStateOf(false) }
-    var selectedImportUri by remember { mutableStateOf<Uri?>(null) }
+    var pendingImportJson by remember { mutableStateOf<String?>(null) }
+    var importPreview by remember { mutableStateOf<ConfigImportPolicy.Preview?>(null) }
 
     var showTranslationSessionSheet by remember { mutableStateOf(false) }
     var showLanguagePickerSheet by remember { mutableStateOf(false) }
@@ -400,26 +403,33 @@ fun SettingsContent(
         }
     }
 
+    // Import and export need the owner's confirmation: an import can switch off App Lock or add
+    // automations that change system settings, an export contains places and app lists
     val onImportConfig: (Boolean) -> Unit = { keepPrefs ->
-        selectedImportUri?.let { uri ->
-            try {
-                context.contentResolver.openInputStream(uri)?.use { inputStream ->
-                    if (viewModel.importConfigs(context, inputStream, keepPrefs)) {
-                        Toast
-                            .makeText(context, "Config imported successfully", Toast.LENGTH_SHORT)
-                            .show()
-                    } else {
-                        Toast
-                            .makeText(context, "Failed to import config", Toast.LENGTH_SHORT)
-                            .show()
+        val json = pendingImportJson
+        val activity = context.findFragmentActivity()
+        pendingImportJson = null
+        importPreview = null
+        showImportConfirmSheet = false
+        if (json != null && activity != null) {
+            BiometricHelper.runAfterAuthentication(
+                activity = activity,
+                title = context.getString(R.string.import_config_sheet_title),
+                subtitle = context.getString(R.string.import_config_auth_subtitle),
+            ) {
+                val imported =
+                    try {
+                        viewModel.importConfigs(context, json, keepPrefs)
+                    } catch (e: Exception) {
+                        e.printStackTrace()
+                        false
                     }
-                }
-            } catch (e: Exception) {
-                Toast.makeText(context, "Failed to import config", Toast.LENGTH_SHORT).show()
-                e.printStackTrace()
-            } finally {
-                selectedImportUri = null
-                showImportConfirmSheet = false
+                Toast
+                    .makeText(
+                        context,
+                        if (imported) "Config imported successfully" else "Failed to import config",
+                        Toast.LENGTH_SHORT,
+                    ).show()
             }
         }
     }
@@ -448,8 +458,20 @@ fun SettingsContent(
             contract = ActivityResultContracts.OpenDocument(),
         ) { uri ->
             uri?.let {
-                selectedImportUri = it
-                showImportConfirmSheet = true
+                val json =
+                    try {
+                        context.contentResolver.openInputStream(it)?.let { stream -> viewModel.readConfigFile(stream) }
+                    } catch (e: Exception) {
+                        null
+                    }
+                val preview = json?.let { text -> viewModel.previewConfigImport(text) }
+                if (json == null || preview == null) {
+                    Toast.makeText(context, R.string.import_config_invalid, Toast.LENGTH_LONG).show()
+                } else {
+                    pendingImportJson = json
+                    importPreview = preview
+                    showImportConfirmSheet = true
+                }
             }
         }
 
@@ -498,9 +520,11 @@ fun SettingsContent(
 
     if (showImportConfirmSheet) {
         ImportConfigConfirmationSheet(
+            preview = importPreview,
             onDismissRequest = {
                 showImportConfirmSheet = false
-                selectedImportUri = null
+                pendingImportJson = null
+                importPreview = null
             },
             onConfirmOverride = {
                 onImportConfig(false)
@@ -1032,7 +1056,15 @@ fun SettingsContent(
                                 "yyyyMMdd_HHmmss",
                                 Locale.getDefault(),
                             ).format(Date())
-                        exportLauncher.launch("essentials_config_$timeStamp.json")
+                        context.findFragmentActivity()?.let { activity ->
+                            BiometricHelper.runAfterAuthentication(
+                                activity = activity,
+                                title = context.getString(R.string.btn_export_config),
+                                subtitle = context.getString(R.string.export_config_auth_subtitle),
+                            ) {
+                                exportLauncher.launch("essentials_config_$timeStamp.json")
+                            }
+                        }
                     },
                     modifier =
                         Modifier
@@ -1736,3 +1768,10 @@ fun SettingsContent(
         )
     }
 }
+
+private tailrec fun android.content.Context.findFragmentActivity(): androidx.fragment.app.FragmentActivity? =
+    when (this) {
+        is androidx.fragment.app.FragmentActivity -> this
+        is android.content.ContextWrapper -> baseContext.findFragmentActivity()
+        else -> null
+    }

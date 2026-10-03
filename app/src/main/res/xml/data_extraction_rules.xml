@@ -1,16 +1,18 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
    Backup and device transfer rules for Android 12+.
-   Typed words of the keyboard and crash logs stay on the device.
+   Credentials, typed words of the keyboard and crash logs stay on the device.
 -->
 <data-extraction-rules>
     <cloud-backup>
+        <exclude domain="sharedpref" path="essentials_secrets.xml" />
         <exclude domain="file" path="user_dict.txt" />
         <exclude domain="file" path="last_crash.log" />
         <exclude domain="file" path="crash_reports" />
         <exclude domain="external" path="crash_reports" />
     </cloud-backup>
     <device-transfer>
+        <exclude domain="sharedpref" path="essentials_secrets.xml" />
         <exclude domain="file" path="user_dict.txt" />
         <exclude domain="file" path="last_crash.log" />
         <exclude domain="file" path="crash_reports" />
