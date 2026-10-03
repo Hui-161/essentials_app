@@ -242,6 +242,42 @@ object UrlShortener {
 
     // --- Core Shortening Engine ---
 
+    /**
+     * True for a web address worth offering for shortening (from the clipboard, for example):
+     * http(s) or a bare host with a dot, no spaces, no user info (rules out e-mail addresses).
+     */
+    fun looksLikeWebUrl(text: String?): Boolean {
+        val trimmed = text?.trim() ?: return false
+        if (trimmed.isEmpty() || trimmed.any { it.isWhitespace() }) return false
+        val hasScheme = trimmed.startsWith("http://", ignoreCase = true) || trimmed.startsWith("https://", ignoreCase = true)
+        if (!hasScheme && trimmed.contains("://")) return false
+        val uri =
+            try {
+                java.net.URI(if (hasScheme) trimmed else "https://$trimmed")
+            } catch (e: java.net.URISyntaxException) {
+                return false
+            }
+        val host = uri.host ?: return false
+        return uri.rawUserInfo == null && host.contains('.') && !host.startsWith('.') && !host.endsWith('.')
+    }
+
+    /** A shortener endpoint must be a plain https origin, so the links never travel unencrypted. */
+    fun isValidDomain(domain: String?): Boolean {
+        val trimmed = domain?.trim()?.trimEnd('/') ?: return false
+        if (!trimmed.startsWith("https://", ignoreCase = true)) return false
+        val uri =
+            try {
+                java.net.URI(trimmed)
+            } catch (e: java.net.URISyntaxException) {
+                return false
+            }
+        return !uri.host.isNullOrBlank() &&
+            uri.rawUserInfo == null &&
+            uri.rawQuery == null &&
+            uri.rawFragment == null &&
+            uri.rawPath.isNullOrEmpty()
+    }
+
     fun sanitizeUrl(rawUrl: String): String {
         var clean = rawUrl.trim()
         if (!clean.startsWith("http://", ignoreCase = true) && !clean.startsWith("https://", ignoreCase = true)) {
@@ -319,6 +355,11 @@ object UrlShortener {
         val cleanedUrl = if (shouldClean) cleanTrackingParameters(rawClean) else sanitizeUrl(rawClean)
         val domainFromSettings = context?.let { getCustomDomain(it) }
         val baseDomain = (customDomain?.takeIf { it.isNotBlank() } ?: domainFromSettings ?: DEFAULT_DOMAIN).trimEnd('/')
+        if (!isValidDomain(baseDomain)) {
+            throw ShortenException.InvalidUrlException(
+                context?.getString(R.string.shorten_domain_https_required) ?: "The shortener domain must be an https:// address.",
+            )
+        }
         val now = System.currentTimeMillis()
         val expiresAt = if (expiration.seconds > 0) now + expiration.seconds * 1000 else 0L
 

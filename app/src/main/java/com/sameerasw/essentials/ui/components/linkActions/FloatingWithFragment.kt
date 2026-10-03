@@ -333,6 +333,19 @@ fun ShortenUrlSheet(
                             )
                         }
 
+                        // The link is sent to this service: show where before the user taps "Shorten"
+                        val shortenerHost =
+                            remember(customDomainInput) {
+                                runCatching { java.net.URI(customDomainInput.trim()).host }.getOrNull()
+                                    ?: customDomainInput.trim()
+                            }
+                        Text(
+                            text = stringResource(R.string.shorten_destination_hint, shortenerHost),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.padding(horizontal = 4.dp),
+                        )
+
                         Column(
                             modifier =
                                 Modifier
@@ -1091,6 +1104,13 @@ fun ShortenUrlSheet(
                             modifier = Modifier.fillMaxWidth(),
                             placeholder = { Text(UrlShortener.DEFAULT_DOMAIN) },
                             shape = RoundedCornerShape(12.dp),
+                            isError = customDomainInput.isNotBlank() && !UrlShortener.isValidDomain(customDomainInput),
+                            supportingText =
+                                if (customDomainInput.isNotBlank() && !UrlShortener.isValidDomain(customDomainInput)) {
+                                    { Text(stringResource(R.string.shorten_domain_https_required)) }
+                                } else {
+                                    null
+                                },
                         )
                     }
                 }

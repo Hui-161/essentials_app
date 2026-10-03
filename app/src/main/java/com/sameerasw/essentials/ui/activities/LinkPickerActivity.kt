@@ -23,6 +23,11 @@ import com.sameerasw.essentials.ui.components.linkActions.LinkPickerScreen
 import com.sameerasw.essentials.ui.theme.EssentialsTheme
 
 class LinkPickerActivity : AppCompatActivity() {
+    companion object {
+        /** Opens the shortener sheet for the link right away (URL shortener tile). */
+        const val EXTRA_OPEN_SHORTENER = "open_shortener"
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
@@ -33,10 +38,11 @@ class LinkPickerActivity : AppCompatActivity() {
         }
         window.setBackgroundDrawableResource(android.R.color.transparent)
 
+        val openShortener = intent.getBooleanExtra(EXTRA_OPEN_SHORTENER, false)
         val locationViewModel =
             com.sameerasw.essentials.viewmodels
                 .LocationReachedViewModel(application)
-        if (locationViewModel.handleIntent(intent)) {
+        if (!openShortener && locationViewModel.handleIntent(intent)) {
             val settingsIntent =
                 Intent(this, FeatureSettingsActivity::class.java).apply {
                     putExtra("feature", "Location reached")
@@ -77,6 +83,7 @@ class LinkPickerActivity : AppCompatActivity() {
                     uri = uri,
                     onFinish = { finish() },
                     modifier = Modifier.fillMaxSize(),
+                    initialOpenShorten = openShortener,
                 )
             }
         }

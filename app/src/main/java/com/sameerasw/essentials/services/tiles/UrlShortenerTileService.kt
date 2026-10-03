@@ -4,28 +4,24 @@
  *
  * Feature Module: Background Services & Receivers - URL Shortener Tile
  * File: UrlShortenerTileService.kt
- * Description: Quick Settings pull-down tile to instantly shorten web URLs from the clipboard with haptic feedback, auto-copy, and action notifications.
+ * Description: Quick Settings tile that opens the shortener for the web URL in the clipboard; the link is sent only after the user confirms it there.
  */
 
 package com.sameerasw.essentials.services.tiles
 
-import android.content.ClipData
+import android.app.PendingIntent
 import android.content.ClipboardManager
 import android.content.Context
+import android.content.Intent
 import android.graphics.drawable.Icon
+import android.net.Uri
 import android.os.Build
-import android.os.Handler
-import android.os.Looper
 import android.service.quicksettings.Tile
 import android.widget.Toast
 import androidx.annotation.RequiresApi
+import com.sameerasw.essentials.LinkPickerActivity
 import com.sameerasw.essentials.R
-import com.sameerasw.essentials.domain.HapticFeedbackType
-import com.sameerasw.essentials.utils.HapticUtil
 import com.sameerasw.essentials.utils.UrlShortener
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
 
 @RequiresApi(Build.VERSION_CODES.N)
 class UrlShortenerTileService : BaseTileService() {
@@ -43,37 +39,29 @@ class UrlShortenerTileService : BaseTileService() {
 
     override fun onTileClick() {
         val clipboard = getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
-        val clipData = clipboard.primaryClip
-        val text = clipData?.getItemAt(0)?.text?.toString()?.trim()
+        val text = clipboard.primaryClip?.getItemAt(0)?.text?.toString()?.trim()
 
-        val isUrlLike = !text.isNullOrBlank() && (text.startsWith("http://", ignoreCase = true) || text.startsWith("https://", ignoreCase = true) || (text.contains(".") && !text.contains(" ")))
-        if (!isUrlLike) {
+        if (text == null || !UrlShortener.looksLikeWebUrl(text)) {
             Toast.makeText(this, getString(R.string.shorten_qs_no_url_clipboard), Toast.LENGTH_SHORT).show()
             return
         }
 
-        serviceScope.launch(Dispatchers.IO) {
-            try {
-                val shortUrl = UrlShortener.shortenUrl(
-                    url = text,
-                    expiration = UrlShortener.getDefaultExpiration(this@UrlShortenerTileService),
-                    context = this@UrlShortenerTileService,
-                )
-
-                withContext(Dispatchers.Main) {
-                    try {
-                        clipboard.setPrimaryClip(ClipData.newPlainText("Shortened Link", shortUrl))
-                    } catch (_: Exception) {}
-
-                    HapticUtil.performHapticForService(this@UrlShortenerTileService, HapticFeedbackType.DOUBLE)
-                    Toast.makeText(this@UrlShortenerTileService, getString(R.string.shorten_qs_success, shortUrl), Toast.LENGTH_SHORT).show()
-                }
-            } catch (e: Exception) {
-                withContext(Dispatchers.Main) {
-                    HapticUtil.performHapticForService(this@UrlShortenerTileService, HapticFeedbackType.TICK)
-                    Toast.makeText(this@UrlShortenerTileService, e.message ?: getString(R.string.shorten_error_generic), Toast.LENGTH_LONG).show()
-                }
+        // The clipboard content only leaves the device after the user checked the link and the
+        // shortener service in the sheet and tapped "Shorten" there
+        val intent =
+            Intent(this, LinkPickerActivity::class.java).apply {
+                action = Intent.ACTION_VIEW
+                data = Uri.parse(UrlShortener.sanitizeUrl(text))
+                putExtra(LinkPickerActivity.EXTRA_OPEN_SHORTENER, true)
+                flags = Intent.FLAG_ACTIVITY_NEW_TASK
             }
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+            startActivityAndCollapse(
+                PendingIntent.getActivity(this, 0, intent, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE),
+            )
+        } else {
+            @Suppress("DEPRECATION")
+            startActivityAndCollapse(intent)
         }
     }
 }
