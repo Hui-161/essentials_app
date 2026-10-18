@@ -30,6 +30,16 @@ class FlashlightActionReceiver : BroadcastReceiver() {
         const val EXTRA_STROBE_SPEED = "strobe_speed"
         const val EXTRA_STROBE_FADE = "strobe_fade"
         const val EXTRA_IS_PREVIEW = "is_preview"
+
+        /**
+         * Hands the action to the running accessibility service in this process; false if it is
+         * not running. Replaceable in tests.
+         */
+        internal var deliverToRunningService: (Intent) -> Boolean = { intent ->
+            val handler = ScreenOffAccessibilityService.instance?.flashlightHandler
+            handler?.handleIntent(intent)
+            handler != null
+        }
     }
 
     override fun onReceive(
@@ -55,6 +65,9 @@ class FlashlightActionReceiver : BroadcastReceiver() {
                     putExtra(EXTRA_IS_PREVIEW, intent.getBooleanExtra(EXTRA_IS_PREVIEW, false))
                 }
             }
+        // Direct call first: startService() from a broadcast can be refused while the app is in
+        // the background, which silently dropped the notification's +/- taps.
+        if (deliverToRunningService(serviceIntent)) return
         try {
             context.startService(serviceIntent)
         } catch (e: IllegalStateException) {
