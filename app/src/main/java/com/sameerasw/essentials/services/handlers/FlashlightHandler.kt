@@ -30,9 +30,11 @@ import android.os.Looper
 import android.os.Vibrator
 import android.os.VibratorManager
 import android.util.Log
+import androidx.annotation.RequiresApi
 import androidx.core.app.NotificationCompat
 import androidx.core.content.edit
 import com.sameerasw.essentials.R
+import com.sameerasw.essentials.data.repository.SettingsRepository
 import com.sameerasw.essentials.domain.HapticFeedbackType
 import com.sameerasw.essentials.services.receivers.FlashlightActionReceiver
 import com.sameerasw.essentials.utils.FlashlightUtil
@@ -68,6 +70,12 @@ class FlashlightHandler(
     private var isInternalToggle = false
 
     private val NOTIFICATION_ID_FLASHLIGHT = 1010
+
+    // Strength changes arrive per fade step; Android drops notification updates above ~5/s
+    private val syncNotificationRunnable =
+        Runnable {
+            if (isTorchOn) updateFlashlightNotification(currentIntensityLevel)
+        }
     private val CHANNEL_ID_FLASHLIGHT = "flashlight_live_update"
 
     private val torchCallback =
@@ -92,17 +100,17 @@ class FlashlightHandler(
 
                 val prefs = service.getSharedPreferences("essentials_prefs", Context.MODE_PRIVATE)
                 val isGlobalEnabled = prefs.getBoolean("flashlight_global_enabled", false)
-                val lastIntensity = prefs.getInt("flashlight_last_intensity", 1)
 
                 if (enabled) {
                     primaryCameraId = cameraId
 
-                    if (isGlobalEnabled && !isInternalToggle) {
-                        currentIntensityLevel = lastIntensity
-                        updateFlashlightNotification(lastIntensity)
+                    if (isGlobalEnabled && !isInternalToggle && canSetIntensity(cameraId)) {
+                        val startLevel = getStartLevel(cameraId)
+                        currentIntensityLevel = startLevel
+                        updateFlashlightNotification(startLevel)
                         Log.d(
                             "Flashlight",
-                            "Global control detected external ON. Fading in to $lastIntensity",
+                            "Global control detected external ON. Fading in to $startLevel",
                         )
                         flashlightJob?.cancel()
                         flashlightJob =
@@ -111,7 +119,7 @@ class FlashlightHandler(
                                     service,
                                     cameraId,
                                     fromLevel = 1,
-                                    toLevel = lastIntensity,
+                                    toLevel = startLevel,
                                     durationMs = 250L,
                                     steps = 8,
                                 )
@@ -122,8 +130,13 @@ class FlashlightHandler(
                             isInternalToggle = false
                         }
                     } else {
-                        // Normal mode or no global - sync level
-                        currentIntensityLevel = FlashlightUtil.getDefaultLevel(service, cameraId)
+                        // Turned on by the system or another app - show the level it chose
+                        currentIntensityLevel =
+                            if (canSetIntensity(cameraId)) {
+                                FlashlightUtil.getCurrentLevel(service, cameraId)
+                            } else {
+                                FlashlightUtil.getDefaultLevel(service, cameraId)
+                            }
                         updateFlashlightNotification(currentIntensityLevel)
                     }
                     startOverheatPrevention(cameraId)
@@ -135,7 +148,56 @@ class FlashlightHandler(
                     stopOverheatPrevention()
                 }
             }
+
+            // Keeps +/- and the notification in sync when the level is changed elsewhere
+            // (island, intensity dialog, system slider). Own +/- fades set the level themselves.
+            @RequiresApi(Build.VERSION_CODES.TIRAMISU)
+            override fun onTorchStrengthLevelChanged(
+                cameraId: String,
+                newStrengthLevel: Int,
+            ) {
+                if (cameraId != getCameraId() || !isTorchOn) return
+                if (flashlightJob?.isActive == true || isSpecialModeActive) return
+                if (newStrengthLevel == currentIntensityLevel) return
+                currentIntensityLevel = newStrengthLevel
+                handler.removeCallbacks(syncNotificationRunnable)
+                handler.postDelayed(syncNotificationRunnable, 300L)
+            }
         }
+
+    /** Strength levels can be set (API 33+, more than one level, not on MediaTek). */
+    private fun canSetIntensity(cameraId: String): Boolean =
+        Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
+            !com.sameerasw.essentials.utils.DeviceUtils
+                .isMediatekDevice() &&
+            FlashlightUtil.isIntensitySupported(service, cameraId)
+
+    /** Level for turning the torch on, from the "Start brightness" setting. */
+    private fun getStartLevel(cameraId: String): Int {
+        val prefs = service.getSharedPreferences("essentials_prefs", Context.MODE_PRIVATE)
+        val stored =
+            try {
+                prefs.getString(SettingsRepository.KEY_FLASHLIGHT_START_BRIGHTNESS, null)
+            } catch (_: ClassCastException) {
+                null
+            }
+        val lastLevel =
+            try {
+                prefs.getInt(SettingsRepository.KEY_FLASHLIGHT_LAST_INTENSITY, 0)
+            } catch (_: ClassCastException) {
+                0
+            }
+        return FlashlightPolicy.startLevel(
+            mode =
+                FlashlightPolicy.startMode(
+                    stored,
+                    prefs.getBoolean(SettingsRepository.KEY_FLASHLIGHT_GLOBAL_ENABLED, false),
+                ),
+            defaultLevel = FlashlightUtil.getDefaultLevel(service, cameraId),
+            maxLevel = FlashlightUtil.getMaxLevel(service, cameraId),
+            lastLevel = lastLevel,
+        )
+    }
 
     fun register() {
         if (com.sameerasw.essentials.utils.DeviceUtils
@@ -231,10 +293,10 @@ class FlashlightHandler(
             val channel =
                 NotificationChannel(
                     CHANNEL_ID_FLASHLIGHT,
-                    "Flashlight Controls",
+                    service.getString(R.string.flashlight_notification_channel_name),
                     NotificationManager.IMPORTANCE_HIGH,
                 ).apply {
-                    description = "Controls for active flashlight"
+                    description = service.getString(R.string.flashlight_notification_channel_desc)
                     setShowBadge(false)
                     setSound(null, null)
                     enableVibration(false)
@@ -244,7 +306,12 @@ class FlashlightHandler(
 
         val cameraId = getCameraId() ?: return
         val maxLevel = FlashlightUtil.getMaxLevel(service, cameraId)
-        val percentage = (intensity * 100) / maxOf(1, maxLevel)
+        val percentage = FlashlightPolicy.percent(intensity, maxLevel)
+        // +/- only where the level can really be changed
+        val showIntensityActions = canSetIntensity(cameraId)
+        val title = service.getString(R.string.flashlight_notification_title)
+        val text = service.getString(R.string.flashlight_notification_brightness, percentage)
+        val offLabel = service.getString(R.string.off)
 
         val decreaseIntent =
             PendingIntent.getBroadcast(
@@ -282,44 +349,50 @@ class FlashlightHandler(
                     Notification
                         .Builder(service, CHANNEL_ID_FLASHLIGHT)
                         .setSmallIcon(R.drawable.rounded_flashlight_on_24)
-                        .setContentTitle("Flashlight active")
-                        .setContentText("Brightness: $percentage%")
+                        .setContentTitle(title)
+                        .setContentText(text)
                         .setOngoing(true)
                         .setOnlyAlertOnce(true)
                         .setCategory(Notification.CATEGORY_SERVICE)
                         .setColorized(false)
                         .setShowWhen(false)
-                        .addAction(
-                            Notification.Action
-                                .Builder(
-                                    Icon.createWithResource(
-                                        service,
-                                        R.drawable.rounded_keyboard_arrow_down_24,
-                                    ),
-                                    "-",
-                                    decreaseIntent,
-                                ).build(),
-                        ).addAction(
-                            Notification.Action
-                                .Builder(
-                                    Icon.createWithResource(
-                                        service,
-                                        R.drawable.rounded_power_settings_new_24,
-                                    ),
-                                    "Off",
-                                    offIntent,
-                                ).build(),
-                        ).addAction(
-                            Notification.Action
-                                .Builder(
-                                    Icon.createWithResource(
-                                        service,
-                                        R.drawable.rounded_keyboard_arrow_up_24,
-                                    ),
-                                    "+",
-                                    increaseIntent,
-                                ).build(),
-                        )
+                if (showIntensityActions) {
+                    builder.addAction(
+                        Notification.Action
+                            .Builder(
+                                Icon.createWithResource(
+                                    service,
+                                    R.drawable.rounded_keyboard_arrow_down_24,
+                                ),
+                                "-",
+                                decreaseIntent,
+                            ).build(),
+                    )
+                }
+                builder.addAction(
+                    Notification.Action
+                        .Builder(
+                            Icon.createWithResource(
+                                service,
+                                R.drawable.rounded_power_settings_new_24,
+                            ),
+                            offLabel,
+                            offIntent,
+                        ).build(),
+                )
+                if (showIntensityActions) {
+                    builder.addAction(
+                        Notification.Action
+                            .Builder(
+                                Icon.createWithResource(
+                                    service,
+                                    R.drawable.rounded_keyboard_arrow_up_24,
+                                ),
+                                "+",
+                                increaseIntent,
+                            ).build(),
+                    )
+                }
 
                 if (Build.VERSION.SDK_INT >= 36) {
                     try {
@@ -374,21 +447,25 @@ class FlashlightHandler(
             NotificationCompat
                 .Builder(service, CHANNEL_ID_FLASHLIGHT)
                 .setSmallIcon(R.drawable.rounded_flashlight_on_24)
-                .setContentTitle("Flashlight active")
-                .setContentText("Brightness: $percentage%")
+                .setContentTitle(title)
+                .setContentText(text)
                 .setOngoing(true)
                 .setOnlyAlertOnce(true)
                 .setPriority(NotificationCompat.PRIORITY_MAX)
                 .setCategory(NotificationCompat.CATEGORY_SERVICE)
-                .addAction(R.drawable.rounded_keyboard_arrow_down_24, "-", decreaseIntent)
-                .addAction(R.drawable.rounded_power_settings_new_24, "Off", offIntent)
-                .addAction(R.drawable.rounded_keyboard_arrow_up_24, "+", increaseIntent)
                 .addExtras(
                     android.os.Bundle().apply {
                         putBoolean("android.requestPromotedOngoing", true)
                         putString("android.shortCriticalText", "$percentage%")
                     },
                 )
+        if (showIntensityActions) {
+            builder.addAction(R.drawable.rounded_keyboard_arrow_down_24, "-", decreaseIntent)
+        }
+        builder.addAction(R.drawable.rounded_power_settings_new_24, offLabel, offIntent)
+        if (showIntensityActions) {
+            builder.addAction(R.drawable.rounded_keyboard_arrow_up_24, "+", increaseIntent)
+        }
 
         notificationManager.notify(NOTIFICATION_ID_FLASHLIGHT, builder.build())
     }
@@ -547,31 +624,31 @@ class FlashlightHandler(
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) return
 
         try {
+            if (!canSetIntensity(cameraId)) {
+                triggerHapticFeedback(HapticFeedbackType.DOUBLE)
+                return
+            }
             val maxLevel = FlashlightUtil.getMaxLevel(service, cameraId)
-            val currentSystemLevel = FlashlightUtil.getCurrentLevel(service, cameraId)
+            // While the previous step is still fading the torch reports an intermediate level
+            val fromLevel =
+                if (flashlightJob?.isActive == true) {
+                    currentIntensityLevel
+                } else {
+                    FlashlightUtil.getCurrentLevel(service, cameraId)
+                }
 
-            val step = maxOf(1, maxLevel / 5)
-            val isAtLimit =
-                if (increase) currentSystemLevel >= maxLevel else currentSystemLevel <= 1
-
-            if (isAtLimit) {
+            val targetLevel = FlashlightPolicy.adjustedLevel(fromLevel, maxLevel, increase)
+            if (targetLevel == null) {
                 triggerHapticFeedback(HapticFeedbackType.DOUBLE)
                 return
             }
 
-            val targetLevel =
-                if (increase) {
-                    (currentSystemLevel + step).coerceAtMost(maxLevel)
-                } else {
-                    (currentSystemLevel - step).coerceAtLeast(1)
-                }
-
             currentIntensityLevel = targetLevel
-
-            val prefs = service.getSharedPreferences("essentials_prefs", Context.MODE_PRIVATE)
-            if (prefs.getBoolean("flashlight_global_enabled", false)) {
-                prefs.edit { putInt("flashlight_last_intensity", targetLevel) }
+            // Remembered for "Last used" start brightness and global controls
+            service.getSharedPreferences("essentials_prefs", Context.MODE_PRIVATE).edit {
+                putInt(SettingsRepository.KEY_FLASHLIGHT_LAST_INTENSITY, targetLevel)
             }
+            updateFlashlightNotification(targetLevel)
 
             flashlightJob?.cancel()
             flashlightJob =
@@ -580,13 +657,15 @@ class FlashlightHandler(
                         FlashlightUtil.fadeFlashlight(
                             service,
                             cameraId,
-                            fromLevel = currentSystemLevel,
+                            fromLevel = fromLevel,
                             toLevel = targetLevel,
                             durationMs = 150L,
                             steps = 5,
                         )
-                    if (success) {
-                        updateFlashlightNotification(targetLevel)
+                    if (!success) {
+                        // Camera in use: show what the torch really does
+                        currentIntensityLevel = FlashlightUtil.getCurrentLevel(service, cameraId)
+                        updateFlashlightNotification(currentIntensityLevel)
                     }
                 }
 
@@ -628,21 +707,12 @@ class FlashlightHandler(
             if (targetCameraId != null) {
                 val finalCameraId = targetCameraId
                 primaryCameraId = finalCameraId
-                FlashlightUtil.getMaxLevel(service, finalCameraId)
                 val defaultLevel = FlashlightUtil.getDefaultLevel(service, finalCameraId)
 
                 if (isFadeEnabled && FlashlightUtil.isIntensitySupported(service, finalCameraId)) {
                     val targetState = !isTorchOn
                     if (targetState) {
-                        currentIntensityLevel = overrideIntensity ?: if (prefs.getBoolean(
-                                "flashlight_global_enabled",
-                                false,
-                            )
-                        ) {
-                            prefs.getInt("flashlight_last_intensity", defaultLevel)
-                        } else {
-                            defaultLevel
-                        }
+                        currentIntensityLevel = overrideIntensity ?: getStartLevel(finalCameraId)
                     }
                     if (targetState) {
                         updateFlashlightNotification(currentIntensityLevel, forceShow = true)
@@ -669,26 +739,32 @@ class FlashlightHandler(
                 } else {
                     isInternalToggle = true
                     flashlightJob?.cancel()
+                    val turnOn = !isTorchOn
+                    val canSetLevel = canSetIntensity(finalCameraId)
+                    val level =
+                        when {
+                            !turnOn -> currentIntensityLevel
+                            !canSetLevel -> defaultLevel
+                            else -> overrideIntensity ?: getStartLevel(finalCameraId)
+                        }
                     var success = false
                     try {
-                        cameraManager.setTorchMode(finalCameraId, !isTorchOn)
+                        // setTorchMode always starts at the system default level
+                        if (turnOn && canSetLevel && level != defaultLevel) {
+                            cameraManager.turnOnTorchWithStrengthLevel(finalCameraId, level)
+                        } else {
+                            cameraManager.setTorchMode(finalCameraId, turnOn)
+                        }
                         success = true
                     } catch (_: Exception) {
                         // SILENT: Handle silently as per user request
                     }
 
                     if (success) {
-                        currentIntensityLevel = overrideIntensity ?: if (prefs.getBoolean(
-                                "flashlight_global_enabled",
-                                false,
-                            )
-                        ) {
-                            prefs.getInt("flashlight_last_intensity", defaultLevel)
-                        } else {
-                            defaultLevel
-                        }
-                        if (!isTorchOn) {
-                            updateFlashlightNotification(currentIntensityLevel)
+                        if (turnOn) {
+                            currentIntensityLevel = level
+                            // isTorchOn changes only in the torch callback, after this call
+                            updateFlashlightNotification(level, forceShow = true)
                         } else {
                             cancelFlashlightNotification()
                         }
@@ -760,10 +836,10 @@ class FlashlightHandler(
                     val prefs = service.getSharedPreferences("essentials_prefs", Context.MODE_PRIVATE)
                     val isOverheatEnabled =
                         prefs.getBoolean("flashlight_overheat_prevention_enabled", true)
-                    if (isOverheatEnabled && FlashlightUtil.isIntensitySupported(service, cameraId)) {
+                    if (isOverheatEnabled && canSetIntensity(cameraId)) {
                         val currentLevel = FlashlightUtil.getCurrentLevel(service, cameraId)
                         val maxLevel = FlashlightUtil.getMaxLevel(service, cameraId)
-                        val limitLevel = (maxLevel * 0.75f).toInt().coerceAtLeast(1)
+                        val limitLevel = FlashlightPolicy.overheatLimit(maxLevel)
                         if (currentLevel > limitLevel) {
                             FlashlightUtil.fadeFlashlight(
                                 service,

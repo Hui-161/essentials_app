@@ -40,6 +40,7 @@ import com.sameerasw.essentials.services.handlers.AppFlowHandler
 import com.sameerasw.essentials.services.handlers.ButtonRemapHandler
 import com.sameerasw.essentials.services.handlers.DuoOverlayHandler
 import com.sameerasw.essentials.services.handlers.FlashlightHandler
+import com.sameerasw.essentials.services.handlers.FlashlightPolicy
 import com.sameerasw.essentials.island.service.IslandCoordinator
 import com.sameerasw.essentials.services.handlers.NotificationLightingHandler
 import com.sameerasw.essentials.services.handlers.OmniGestureOverlayHandler
@@ -88,6 +89,12 @@ class ScreenOffAccessibilityService :
     private var isLightSensorRegistered = false
     private var isProximityRegisteredForPocket = false
     private var isProximityRegistered = false
+
+    // Orientation for the flashlight pocket detection (registered only while it is needed)
+    private var flatSensor: Sensor? = null
+    private var isFlatSensorRegistered = false
+    private var flashlightGravityZ: Float? = null
+    private var isPocketFlashlightTurnOffScheduled = false
 
     private fun updatePocketModeExcludedAppsSet() {
         val prefs = getSharedPreferences("essentials_prefs", MODE_PRIVATE)
@@ -160,10 +167,10 @@ class ScreenOffAccessibilityService :
     private val pocketFlashlightHandler = Handler(Looper.getMainLooper())
     private val pocketFlashlightRunnable =
         Runnable {
-            val prefs = getSharedPreferences("essentials_prefs", MODE_PRIVATE)
-            val pocketTurnOffEnabled = prefs.getBoolean("flashlight_pocket_turn_off_enabled", false)
-            // Re-check at fire time — guards against external torch-off between scheduling and firing
-            if (pocketTurnOffEnabled && flashlightHandler.isProximityBlocked && flashlightHandler.isTorchOn) {
+            isPocketFlashlightTurnOffScheduled = false
+            // Re-check at fire time — guards against external torch-off or the phone being put
+            // down between scheduling and firing
+            if (shouldPocketTurnOffFlashlight()) {
                 flashlightHandler.toggleFlashlight()
             }
         }
@@ -171,16 +178,55 @@ class ScreenOffAccessibilityService :
     private fun schedulePocketFlashlightTurnOff() {
         pocketFlashlightHandler.removeCallbacks(pocketFlashlightRunnable)
         pocketFlashlightHandler.postDelayed(pocketFlashlightRunnable, 1500L)
+        isPocketFlashlightTurnOffScheduled = true
     }
 
     private fun cancelPocketFlashlightTurnOff() {
         pocketFlashlightHandler.removeCallbacks(pocketFlashlightRunnable)
+        isPocketFlashlightTurnOffScheduled = false
+    }
+
+    private fun isPocketFlatCheckEnabled(): Boolean =
+        getSharedPreferences("essentials_prefs", MODE_PRIVATE)
+            .getBoolean(SettingsRepository.KEY_FLASHLIGHT_POCKET_IGNORE_FLAT_ENABLED, true)
+
+    private fun shouldPocketTurnOffFlashlight(): Boolean {
+        val prefs = getSharedPreferences("essentials_prefs", MODE_PRIVATE)
+        return FlashlightPolicy.shouldPocketTurnOff(
+            enabled = prefs.getBoolean(SettingsRepository.KEY_FLASHLIGHT_POCKET_TURN_OFF_ENABLED, false),
+            torchOn = flashlightHandler.isTorchOn,
+            proximityBlocked = flashlightHandler.isProximityBlocked,
+            ignoreWhenFlat = isPocketFlatCheckEnabled(),
+            gravityZ = flashlightGravityZ,
+        )
+    }
+
+    /** Gravity (or accelerometer) only while the torch is on and the flat check is wanted. */
+    private fun updateFlatSensorRegistration(shouldRegister: Boolean) {
+        if (shouldRegister) {
+            if (!isFlatSensorRegistered) {
+                val sensor =
+                    sensorManager.getDefaultSensor(Sensor.TYPE_GRAVITY)
+                        ?: sensorManager.getDefaultSensor(Sensor.TYPE_ACCELEROMETER)
+                sensor?.let {
+                    flatSensor = it
+                    sensorManager.registerListener(this, it, SensorManager.SENSOR_DELAY_NORMAL)
+                    isFlatSensorRegistered = true
+                }
+            }
+        } else if (isFlatSensorRegistered) {
+            flatSensor?.let { sensorManager.unregisterListener(this, it) }
+            isFlatSensorRegistered = false
+            flashlightGravityZ = null
+        }
     }
 
     private fun updateProximitySensorRegistration() {
         val prefs = getSharedPreferences("essentials_prefs", MODE_PRIVATE)
         val pocketTurnOffEnabled = prefs.getBoolean("flashlight_pocket_turn_off_enabled", false)
         val flashlightNeedsProximity = pocketTurnOffEnabled && flashlightHandler.isTorchOn
+        updateFlatSensorRegistration(flashlightNeedsProximity && isPocketFlatCheckEnabled())
+        if (!flashlightNeedsProximity) cancelPocketFlashlightTurnOff()
 
         val shouldRegister = isProximityRegisteredForPocket || flashlightNeedsProximity
 
@@ -228,6 +274,10 @@ class ScreenOffAccessibilityService :
                 statusBarIconHandler.updateAll()
             } else if (key == "pocket_mode_enabled" || key == "pocket_mode_use_light_sensor") {
                 updatePocketModeSensors()
+            } else if (key == SettingsRepository.KEY_FLASHLIGHT_POCKET_TURN_OFF_ENABLED ||
+                key == SettingsRepository.KEY_FLASHLIGHT_POCKET_IGNORE_FLAT_ENABLED
+            ) {
+                updateProximitySensorRegistration()
             } else if (key == "pocket_mode_excluded_apps") {
                 updatePocketModeExcludedAppsSet()
             } else if (key == SettingsRepository.KEY_SMART_PIXELS_ENABLED ||
@@ -512,6 +562,7 @@ class ScreenOffAccessibilityService :
         statusBarIconHandler.unregister()
         stopInputEventListener()
         cancelPocketFlashlightTurnOff()
+        updateFlatSensorRegistration(false)
         if (isProximityRegistered) {
             proximitySensor?.let {
                 sensorManager.unregisterListener(this, it)
@@ -681,7 +732,9 @@ class ScreenOffAccessibilityService :
 
     override fun onSensorChanged(event: SensorEvent?) {
         if (event == null) return
-        if (event.sensor.type == Sensor.TYPE_LIGHT) {
+        if (event.sensor.type == Sensor.TYPE_GRAVITY || event.sensor.type == Sensor.TYPE_ACCELEROMETER) {
+            onFlatSensorChanged(event)
+        } else if (event.sensor.type == Sensor.TYPE_LIGHT) {
             lightSensorLux = event.values[0]
             val prefs = getSharedPreferences("essentials_prefs", MODE_PRIVATE)
             val pocketModeEnabled = prefs.getBoolean("pocket_mode_enabled", false)
@@ -717,9 +770,8 @@ class ScreenOffAccessibilityService :
             flashlightHandler.isProximityBlocked = isBlocked
 
             val prefs = getSharedPreferences("essentials_prefs", MODE_PRIVATE)
-            val pocketTurnOffEnabled = prefs.getBoolean("flashlight_pocket_turn_off_enabled", false)
 
-            if (pocketTurnOffEnabled && isBlocked && flashlightHandler.isTorchOn) {
+            if (shouldPocketTurnOffFlashlight()) {
                 schedulePocketFlashlightTurnOff()
             } else {
                 cancelPocketFlashlightTurnOff()
@@ -757,6 +809,23 @@ class ScreenOffAccessibilityService :
         sensor: Sensor?,
         accuracy: Int,
     ) {}
+
+    private fun onFlatSensorChanged(event: SensorEvent) {
+        val z = event.values[2]
+        flashlightGravityZ =
+            if (event.sensor.type == Sensor.TYPE_ACCELEROMETER) {
+                FlashlightPolicy.lowPass(flashlightGravityZ, z)
+            } else {
+                z
+            }
+        // Picked up from the table with the sensor still covered: start the delay once,
+        // put down flat: cancel it
+        if (shouldPocketTurnOffFlashlight()) {
+            if (!isPocketFlashlightTurnOffScheduled) schedulePocketFlashlightTurnOff()
+        } else {
+            cancelPocketFlashlightTurnOff()
+        }
+    }
 
     override fun onConfigurationChanged(newConfig: Configuration) {
         super.onConfigurationChanged(newConfig)

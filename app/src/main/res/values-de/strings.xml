@@ -1545,6 +1545,17 @@ Für Anpassungen der Skalierung sind möglicherweise zusätzlich Shizuku- oder R
     <string name="flashlight_pocket_desc">Schaltet die Taschenlampe aus, wenn sich das Handy in einer Tasche befindet</string>
     <string name="flashlight_overheat_title">Überhitzungsschutz</string>
     <string name="flashlight_overheat_desc">Verringert die Helligkeit bei längerer Nutzung</string>
+    <string name="flashlight_pocket_ignore_flat_title">Nicht abschalten, wenn das Handy flach liegt</string>
+    <string name="flashlight_pocket_ignore_flat_desc">Lässt die Taschenlampe an, wenn das Handy auf dem Tisch liegt, auch mit dem Display nach unten</string>
+    <string name="flashlight_start_brightness_title">Start-Helligkeit</string>
+    <string name="flashlight_start_brightness_desc">Gilt für Essentials, mit „Globale Steuerungen“ auch für die System-Kachel</string>
+    <string name="flashlight_start_brightness_default">Standard</string>
+    <string name="flashlight_start_brightness_max">100 %</string>
+    <string name="flashlight_start_brightness_last">Zuletzt verwendet</string>
+    <string name="flashlight_notification_channel_name">Taschenlampen-Steuerung</string>
+    <string name="flashlight_notification_channel_desc">Steuerung der eingeschalteten Taschenlampe</string>
+    <string name="flashlight_notification_title">Taschenlampe an</string>
+    <string name="flashlight_notification_brightness">Helligkeit: %1$d %%</string>
     <string name="label_device_battery">Akku</string>
     <string name="label_battery_health">Zustand</string>
     <string name="label_battery_temperature">Temperatur</string>

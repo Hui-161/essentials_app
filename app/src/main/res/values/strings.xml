@@ -244,6 +244,17 @@
     <string name="flashlight_pocket_desc">Turn off flashlight when phone is in your pocket</string>
     <string name="flashlight_overheat_title">Overheating prevention</string>
     <string name="flashlight_overheat_desc">Lower brightness on longer period of use</string>
+    <string name="flashlight_pocket_ignore_flat_title">Don\'t turn off when lying flat</string>
+    <string name="flashlight_pocket_ignore_flat_desc">Keeps the flashlight on when the phone lies on a table, even face down</string>
+    <string name="flashlight_start_brightness_title">Start brightness</string>
+    <string name="flashlight_start_brightness_desc">Applies to Essentials, with Global controls to the system tile too</string>
+    <string name="flashlight_start_brightness_default">Default</string>
+    <string name="flashlight_start_brightness_max">100%</string>
+    <string name="flashlight_start_brightness_last">Last used</string>
+    <string name="flashlight_notification_channel_name">Flashlight controls</string>
+    <string name="flashlight_notification_channel_desc">Controls for the active flashlight</string>
+    <string name="flashlight_notification_title">Flashlight on</string>
+    <string name="flashlight_notification_brightness">Brightness: %1$d%%</string>
     <string name="content_desc_settings">Settings</string>
 
     <!-- Caffeinate / Permissions -->

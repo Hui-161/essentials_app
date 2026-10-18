@@ -18,13 +18,25 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import com.sameerasw.essentials.R
+import com.sameerasw.essentials.services.handlers.FlashlightPolicy
+import com.sameerasw.essentials.ui.components.menus.SegmentedDropdownMenuItem
+import com.sameerasw.essentials.ui.core.cards.ConfigPickerItem
 import com.sameerasw.essentials.ui.core.cards.IconToggleItem
 import com.sameerasw.essentials.ui.core.containers.RoundedCardContainer
 import com.sameerasw.essentials.ui.modifiers.highlight
+import com.sameerasw.essentials.utils.HapticUtil
 import com.sameerasw.essentials.viewmodels.MainViewModel
+
+private val startBrightnessOptions =
+    listOf(
+        FlashlightPolicy.START_DEFAULT to R.string.flashlight_start_brightness_default,
+        FlashlightPolicy.START_MAX to R.string.flashlight_start_brightness_max,
+        FlashlightPolicy.START_LAST to R.string.flashlight_start_brightness_last,
+    )
 
 @Composable
 fun FlashlightSettingsUI(
@@ -33,6 +45,10 @@ fun FlashlightSettingsUI(
     highlightSetting: String? = null,
 ) {
     val context = LocalContext.current
+    val view = LocalView.current
+    val startBrightnessLabel =
+        startBrightnessOptions.firstOrNull { it.first == viewModel.flashlightStartBrightness.value }?.second
+            ?: R.string.flashlight_start_brightness_default
 
     Column(
         modifier =
@@ -58,6 +74,24 @@ fun FlashlightSettingsUI(
                 modifier = Modifier.highlight(highlightSetting == "flashlight_global"),
             )
 
+            ConfigPickerItem(
+                title = stringResource(R.string.flashlight_start_brightness_title),
+                description = stringResource(R.string.flashlight_start_brightness_desc),
+                iconRes = R.drawable.rounded_brightness_6_24,
+                selectedValue = stringResource(startBrightnessLabel),
+                modifier = Modifier.highlight(highlightSetting == "flashlight_start_brightness"),
+            ) {
+                startBrightnessOptions.forEach { (mode, labelRes) ->
+                    SegmentedDropdownMenuItem(
+                        text = { Text(stringResource(labelRes)) },
+                        onClick = {
+                            HapticUtil.performVirtualKeyHaptic(view)
+                            viewModel.setFlashlightStartBrightness(mode, context)
+                        },
+                    )
+                }
+            }
+
             IconToggleItem(
                 iconRes = R.drawable.rounded_upcoming_24,
                 title = stringResource(R.string.flashlight_adjust_intensity_title),
@@ -80,6 +114,15 @@ fun FlashlightSettingsUI(
                 description = stringResource(R.string.flashlight_pocket_desc),
                 isChecked = viewModel.isFlashlightPocketTurnOffEnabled.value,
                 onCheckedChange = { viewModel.setFlashlightPocketTurnOffEnabled(it, context) },
+            )
+            IconToggleItem(
+                iconRes = R.drawable.rounded_mobile_arrow_down_24,
+                title = stringResource(R.string.flashlight_pocket_ignore_flat_title),
+                description = stringResource(R.string.flashlight_pocket_ignore_flat_desc),
+                isChecked = viewModel.isFlashlightPocketIgnoreFlatEnabled.value,
+                onCheckedChange = { viewModel.setFlashlightPocketIgnoreFlatEnabled(it, context) },
+                enabled = viewModel.isFlashlightPocketTurnOffEnabled.value,
+                modifier = Modifier.highlight(highlightSetting == "flashlight_pocket_ignore_flat"),
             )
             IconToggleItem(
                 iconRes = R.drawable.rounded_thermometer_alert_24,

@@ -68,6 +68,7 @@ import com.sameerasw.essentials.domain.registry.SearchRegistry
 import com.sameerasw.essentials.services.AppUpdateWorker
 import com.sameerasw.essentials.services.CaffeinateWakeLockService
 import com.sameerasw.essentials.services.NotificationLightingService
+import com.sameerasw.essentials.services.handlers.FlashlightPolicy
 import com.sameerasw.essentials.services.receivers.FlashlightActionReceiver
 import com.sameerasw.essentials.services.receivers.SecurityDeviceAdminReceiver
 import com.sameerasw.essentials.services.receivers.SecurityReceiver
@@ -307,6 +308,8 @@ class MainViewModel : ViewModel() {
     val flashlightPulseMaxIntensity = mutableFloatStateOf(0.5f)
     val isFlashlightPulseDisableOnDnd = mutableStateOf(true)
     val isFlashlightPocketTurnOffEnabled = mutableStateOf(false)
+    val isFlashlightPocketIgnoreFlatEnabled = mutableStateOf(true)
+    val flashlightStartBrightness = mutableStateOf(FlashlightPolicy.START_DEFAULT)
     val isFlashlightOverheatEnabled = mutableStateOf(true)
     val isLocationPermissionGranted = mutableStateOf(false)
     val isOvercastWeatherPermissionGranted = mutableStateOf(false)
@@ -1316,6 +1319,14 @@ class MainViewModel : ViewModel() {
 
                     SettingsRepository.KEY_FLASHLIGHT_POCKET_TURN_OFF_ENABLED -> {
                         isFlashlightPocketTurnOffEnabled.value = settingsRepository.getBoolean(key)
+                    }
+
+                    SettingsRepository.KEY_FLASHLIGHT_POCKET_IGNORE_FLAT_ENABLED -> {
+                        isFlashlightPocketIgnoreFlatEnabled.value = settingsRepository.getBoolean(key, true)
+                    }
+
+                    SettingsRepository.KEY_FLASHLIGHT_START_BRIGHTNESS -> {
+                        flashlightStartBrightness.value = loadFlashlightStartBrightness()
                     }
 
                     SettingsRepository.KEY_FLASHLIGHT_OVERHEAT_PREVENTION_ENABLED -> {
@@ -2368,6 +2379,9 @@ class MainViewModel : ViewModel() {
             )
         isFlashlightPocketTurnOffEnabled.value =
             settingsRepository.getBoolean(SettingsRepository.KEY_FLASHLIGHT_POCKET_TURN_OFF_ENABLED)
+        isFlashlightPocketIgnoreFlatEnabled.value =
+            settingsRepository.getBoolean(SettingsRepository.KEY_FLASHLIGHT_POCKET_IGNORE_FLAT_ENABLED, true)
+        flashlightStartBrightness.value = loadFlashlightStartBrightness()
         isFlashlightOverheatEnabled.value =
             settingsRepository.getBoolean(
                 SettingsRepository.KEY_FLASHLIGHT_OVERHEAT_PREVENTION_ENABLED,
@@ -8423,6 +8437,47 @@ class MainViewModel : ViewModel() {
     }
 
     /**
+     * Keeps the flashlight on while the phone lies flat (table), even with the proximity sensor
+     * covered.
+     *
+     * @param enabled [Boolean] Target enabled.
+     * @param context [Context] Target context.
+     */
+    fun setFlashlightPocketIgnoreFlatEnabled(
+        enabled: Boolean,
+        context: Context,
+    ) {
+        isFlashlightPocketIgnoreFlatEnabled.value = enabled
+        settingsRepository.putBoolean(
+            SettingsRepository.KEY_FLASHLIGHT_POCKET_IGNORE_FLAT_ENABLED,
+            enabled,
+        )
+    }
+
+    /**
+     * Sets the level the flashlight starts with ([FlashlightPolicy.START_DEFAULT],
+     * [FlashlightPolicy.START_MAX] or [FlashlightPolicy.START_LAST]).
+     *
+     * @param mode [String] Target mode.
+     * @param context [Context] Target context.
+     */
+    fun setFlashlightStartBrightness(
+        mode: String,
+        context: Context,
+    ) {
+        flashlightStartBrightness.value = mode
+        settingsRepository.putString(SettingsRepository.KEY_FLASHLIGHT_START_BRIGHTNESS, mode)
+    }
+
+    private fun loadFlashlightStartBrightness(): String =
+        FlashlightPolicy.startMode(
+            runCatching {
+                settingsRepository.getString(SettingsRepository.KEY_FLASHLIGHT_START_BRIGHTNESS)
+            }.getOrNull(),
+            settingsRepository.getBoolean(SettingsRepository.KEY_FLASHLIGHT_GLOBAL_ENABLED),
+        )
+
+    /**
      * Executes the set flashlight overheat enabled operation.
      *
      * @param enabled [Boolean] Target enabled.
@@ -8482,6 +8537,8 @@ class MainViewModel : ViewModel() {
     ) {
         isFlashlightGlobalEnabled.value = enabled
         settingsRepository.putBoolean(SettingsRepository.KEY_FLASHLIGHT_GLOBAL_ENABLED, enabled)
+        // Without an explicit start brightness, global controls start with the last level
+        flashlightStartBrightness.value = loadFlashlightStartBrightness()
     }
 
     /**

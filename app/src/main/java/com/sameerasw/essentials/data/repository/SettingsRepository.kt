@@ -273,6 +273,8 @@ class SettingsRepository(
         const val KEY_FLASHLIGHT_PULSE_MAX_INTENSITY = "flashlight_pulse_max_intensity"
         const val KEY_FLASHLIGHT_PULSE_DISABLE_ON_DND = "flashlight_pulse_disable_on_dnd"
         const val KEY_FLASHLIGHT_POCKET_TURN_OFF_ENABLED = "flashlight_pocket_turn_off_enabled"
+        const val KEY_FLASHLIGHT_POCKET_IGNORE_FLAT_ENABLED = "flashlight_pocket_ignore_flat_enabled"
+        const val KEY_FLASHLIGHT_START_BRIGHTNESS = "flashlight_start_brightness"
         const val KEY_FLASHLIGHT_OVERHEAT_PREVENTION_ENABLED =
             "flashlight_overheat_prevention_enabled"
 
