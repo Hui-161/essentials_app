@@ -10,6 +10,7 @@ Original (`sameerasw/essentials`):
   demselben Zertifikat signiert sind wie die installierte App. Die JitPack-Bibliothek
   `AutoUpdater` entfällt.
 - **Sicherheitskorrekturen:** siehe [SECURITY_REVIEW.md](SECURITY_REVIEW.md).
+- **Eigene Änderungen:** siehe [CHANGELOG.md](../CHANGELOG.md).
 - **Eigene Pipeline:** `.github/workflows/build.yml` (Debug-APK bei jedem Push) und
   `.github/workflows/release.yml` (signiertes Release per Knopfdruck). Die Upstream-Workflows
   für Telegram-Benachrichtigungen und Community-Übersetzungen sind entfernt.

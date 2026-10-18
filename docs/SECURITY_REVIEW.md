@@ -49,6 +49,14 @@ Gradle 9.5.0.
 | 24 | niedrig | Exportierter Manifest-Receiver `moe.shizuku.api.SystemServiceHelper$Receiver` ohne vorhandene Klasse: Ein expliziter Broadcast ließ die App abstürzen. | behoben (entfernt) |
 | 25 | info | CI des Originals: `notify.yml` (Telegram, `pull_request_target`) und `apply-translations.yml` (Push und PR aus Discussion-Kommentaren) sind auf die Infrastruktur des Original-Autors zugeschnitten. | im Fork entfernt |
 
+## Geprüfte Übernahmen aus dem Original
+
+| Datum | Commit | Inhalt | Prüfung | Entscheidung |
+|---|---|---|---|---|
+| 2026-10-18 | `edf0565d` | Null-Prüfung in den Taschenlampen-Callbacks der Island | keine neuen Komponenten, Rechte, Netzwerkziele oder Shell-Aufrufe | übernommen |
+| 2026-10-18 | `df3d6a0d`, `8c1b7ceb`, `ce9b0471` | Taschenlampe auf MediaTek- und TCL-Geräten sperren, Freigabe über „Nicht unterstützte Funktionen“ und „Taschenlampe erzwingen“ | unkritisch (nur Einstellungen) | nicht übernommen: betrifft die gemeldeten Probleme nicht und schaltet Funktionen auf diesen Geräten ab |
+| 2026-10-18 | `30b8ecb1` (in `a4028585`) | Island-Taschenlampe lässt sich wieder einklappen | unkritisch (nur Oberfläche) | nicht übernommen: betrifft die gemeldeten Probleme nicht |
+
 ## Nicht verändert, aber zu beachten
 
 - Shizuku bzw. Root gibt Essentials Shell-Rechte (uid 2000 bzw. 0). Jede neue Funktion, die
