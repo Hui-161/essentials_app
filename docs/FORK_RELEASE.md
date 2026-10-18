@@ -58,10 +58,25 @@ Paketname bleibt `com.sameerasw.essentials`. Versionen: `versionName` = Upstream
 
 ## Release veröffentlichen
 
-1. Änderungen auf `main` pushen und abwarten, dass der Workflow **Build** grün ist.
-2. *Actions* → **Release** → *Run workflow* → Branch `main`.
-3. Ergebnis: Tag `v<versionName>`, Release mit `essentials-<versionName>.apk`, `.sha256` und
-   dem **SHA-256 des Signaturzertifikats** in den Release-Notizen.
+1. In [CHANGELOG.md](../CHANGELOG.md) oben einen Abschnitt für die neue Version anlegen. Er
+   wird zu den Release-Notizen und erscheint in der App beim Update. Relative Links zeigen in
+   den Notizen automatisch auf den Release-Commit.
+2. Änderungen auf `main` pushen und abwarten, dass der Workflow **Build** grün ist. Den Debug-Build
+   vorher auf dem Gerät testen.
+3. *Actions* → **Release** → *Run workflow* → Branch `main`.
+4. Ergebnis: Tag `v<versionName>`, Release mit `essentials-<versionName>.apk`, `.sha256`, dem
+   Changelog-Abschnitt, Installationshinweisen, dem **SHA-256 des Signaturzertifikats** und den
+   Commits seit dem letzten Release. Ist der Changelog seit dem letzten Release unverändert,
+   zeigt der Lauf eine Warnung.
+
+### Vor dem ersten Release
+
+- [ ] Secrets `RELEASE_KEYSTORE_BASE64`, `RELEASE_STORE_PASSWORD`, `RELEASE_KEY_ALIAS` und
+      `RELEASE_KEY_PASSWORD` angelegt (siehe oben). Fehlt der Schlüssel, bricht der Workflow
+      mit einer Fehlermeldung ab, bevor etwas veröffentlicht wird.
+- [ ] `release.keystore` und Passwort sicher und offline aufbewahrt.
+- [ ] Debug-Build auf dem Gerät getestet.
+- [ ] Nach dem Release den Zertifikat-Fingerabdruck aus den Release-Notizen notieren.
 
 Den Zertifikat-Fingerabdruck beim ersten Release notieren. Er muss bei allen folgenden
 Releases gleich bleiben.

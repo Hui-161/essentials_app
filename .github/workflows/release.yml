@@ -102,21 +102,7 @@ jobs:
             echo "::error::Release $TAG already exists - push a new commit first."
             exit 1
           fi
-          {
-            echo "Build of \`${GITHUB_SHA::12}\` (versionCode $VERSION_CODE)."
-            echo
-            echo "**Signing certificate SHA-256:** \`$CERT_SHA256\`"
-            echo
-            echo "**APK SHA-256:** \`$(cut -d' ' -f1 "$FILE.sha256")\`"
-            echo
-            echo "### Changes"
-            PREVIOUS=$(git describe --tags --abbrev=0 --match 'v*-fork.*' 2>/dev/null || true)
-            if [ -n "$PREVIOUS" ]; then
-              git log --no-merges --format='- %s' "$PREVIOUS..HEAD" | head -n 60
-            else
-              git log --no-merges --format='- %s' -n 30
-            fi
-          } > notes.md
+          bash .github/scripts/release-notes.sh notes.md
           gh release create "$TAG" "$FILE" "$FILE.sha256" \
             --target "$GITHUB_SHA" \
             --title "Essentials $VERSION_NAME" \

@@ -1,10 +1,37 @@
 # Änderungen im Fork
 
-Änderungen dieses Forks (`Hui-161/essentials_app`) gegenüber dem Original. Sicherheitskorrekturen
-stehen in [docs/SECURITY_REVIEW.md](docs/SECURITY_REVIEW.md), Releases und Updates in
-[docs/FORK_RELEASE.md](docs/FORK_RELEASE.md).
+Änderungen dieses Forks (`Hui-161/essentials_app`) gegenüber dem Original. Der oberste Abschnitt
+wird beim Release zu den Release-Notizen und erscheint auch in der App beim Update. Vor jedem
+Release oben einen neuen Abschnitt anlegen. Die Versionsnummer mit Build-Nummer vergibt der
+Release-Workflow (`v<Version>-fork.<Anzahl Commits>`).
 
-## Unveröffentlicht
+## 18.5-beta.1-fork – erste eigene Version (Oktober 2026)
+
+Basis: Essentials 18.5-beta.1 (Original-Stand `8294f0e`). Neuere Versionen des Originals
+(19.0, 20.0) sind noch nicht enthalten.
+
+### Datenschutz und Sicherheit
+
+- Keine Telemetrie mehr: Sentry ist vollständig entfernt.
+- Sicherheitsprüfung mit 25 Befunden: 22 behoben, einer weitgehend behoben, 2 bewusst offen
+  (Online-Inhalte des Originals). Unter anderem können andere Apps keine internen Aktionen mehr
+  auslösen (Apps einfrieren, App-Sperre umgehen, Taschenlampe, Remaps). Werte in Shell-Befehlen
+  werden geprüft und maskiert. Die externe Steuerung ist auf einfache Schalter begrenzt. Details
+  stehen in [docs/SECURITY_REVIEW.md](docs/SECURITY_REVIEW.md).
+- Export und Import von Einstellungen verlangen Fingerabdruck oder Gerätesperre. Der Import zeigt
+  vorher geänderte Sicherheitseinstellungen und Automationen mit Systemaktionen. Zugangsdaten
+  werden nie exportiert und sind vom Backup ausgeschlossen.
+- Die Tastatur protokolliert keine Zwischenablage mehr und lernt keine Wörter in
+  Passwortfeldern. Rufnummern, Kontaktnamen, Benachrichtigungstexte, Koordinaten und ähnliche
+  Inhalte stehen nicht mehr in Logs. Gelernte Wörter und Absturzlogs sind vom Backup
+  ausgeschlossen.
+- Der URL-Kürzer sendet erst nach Bestätigung. Verknüpfungen auf dem Startbildschirm sind
+  weitgehend gegen Missbrauch durch andere Apps geschützt.
+
+### Updates
+
+- Updates kommen nur aus den Releases dieses Repositorys und werden nur installiert, wenn sie
+  mit demselben Zertifikat signiert sind wie die installierte App.
 
 ### Taschenlampe
 
@@ -32,3 +59,9 @@ stehen in [docs/SECURITY_REVIEW.md](docs/SECURITY_REVIEW.md), Releases und Updat
   Maximalstufe (abgerundet, bei 5 Stufen also auf Stufe 3).
 - Aus dem Original übernommen: Absturzschutz in den Taschenlampen-Callbacks der Island
   (`edf0565d`).
+
+### Bekannte Einschränkungen
+
+- AirSync-Brücke und Wear-OS-App des Original-Autors funktionieren mit diesem Build nicht.
+- Online-Inhalte (Hilfe-Videos, Projekt-Infos, Tages-Hintergrund, Übersetzungsmodus,
+  Link-Vorschau) kommen weiterhin von den Servern des Original-Autors bzw. von GitHub.

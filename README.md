@@ -1,5 +1,12 @@
 # Essentials
 
+> **Fork `Hui-161/essentials_app`:** sicherheitsgehärtete, selbst gebaute Version ohne
+> Telemetrie. APKs gibt es unter [Releases](https://github.com/Hui-161/essentials_app/releases),
+> Updates in der App kommen nur von dort. Unterschiede zum Original, Installation und
+> Einschränkungen: [docs/FORK_RELEASE.md](docs/FORK_RELEASE.md),
+> [CHANGELOG.md](CHANGELOG.md), [docs/SECURITY_REVIEW.md](docs/SECURITY_REVIEW.md).
+> Die Links und Hinweise weiter unten stammen aus dem Original.
+
 Essential tools, mods and workarounds for Pixels and other Androids
 
 
