@@ -127,6 +127,8 @@ android {
         targetCompatibility = JavaVersion.VERSION_21
     }
     testOptions {
+        // App resources in Robolectric tests (strings of notifications built by the code under test)
+        unitTests.isIncludeAndroidResources = true
         unitTests.all {
             // Robolectric (SDK 35+) reaches into FileDescriptor internals, which JDK 17+ hides
             it.jvmArgs("--add-opens=java.base/jdk.internal.access=ALL-UNNAMED")
