@@ -1867,6 +1867,10 @@ Zugriff auf die Barrierefreiheit ist erforderlich, um die Überlagerung zu zeich
     <string name="island_brief_title">Kurzübersicht</string>
     <string name="island_brief_desc">Erhalten Sie einen Überblick über die aktuelle Situation</string>
     <string name="island_like_while_playing_title">Musik während der Wiedergabe liken</string>
+    <string name="island_show_when_title">Anzeigen, wenn</string>
+    <string name="island_show_when_unlocked">Entsperrt</string>
+    <string name="island_show_when_screen_on">Bildschirm an</string>
+    <string name="island_show_when_always">Immer</string>
     <string name="duo_action_horizontal_slide_track_desc">Nur aktiv, während Medien wiedergegeben werden</string>
     <string name="duo_action_horizontal_slide_track">Titel wechseln</string>
     <string name="label_motion_blur_amount">Menge</string>

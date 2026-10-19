@@ -60,6 +60,13 @@ Basis: Essentials 18.5-beta.1 (Original-Stand `8294f0e`). Neuere Versionen des O
 - Aus dem Original übernommen: Absturzschutz in den Taschenlampen-Callbacks der Island
   (`edf0565d`).
 
+### Island
+
+- „Anzeigen, wenn“ ist übersetzt. Bei einer neuen Installation steht die Einstellung auf
+  „Entsperrt“: Dann ist die Island auf dem Sperrbildschirm leer und reagiert nicht auf Gesten.
+  Wer die Taschenlampe auf dem Sperrbildschirm über die Notch einschalten will, wählt
+  „Bildschirm an“ oder „Immer“.
+
 ### Bekannte Einschränkungen
 
 - AirSync-Brücke und Wear-OS-App des Original-Autors funktionieren mit diesem Build nicht.
